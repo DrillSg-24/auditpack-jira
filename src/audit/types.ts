@@ -97,4 +97,20 @@ export interface AuditReport {
   complianceRatePercent: number;
   controlSummaries: ControlSummary[];
   records: AuditedIssueRecord[];
+  truncated?: boolean;
+  pagesFetched?: number;
+}
+
+export interface AuditSnapshotRecord {
+  id: string;
+  createdAt: string;
+  label: string;
+  scopeSummary: string;
+  jql: string;
+  totalAudited: number;
+  compliantCount: number;
+  nonCompliantCount: number;
+  complianceRatePercent: number;
+  controlSummaries: ControlSummary[];
+  sha256: string;
 }

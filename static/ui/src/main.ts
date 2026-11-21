@@ -95,10 +95,27 @@ interface AuditReport {
   complianceRatePercent: number;
   controlSummaries: ControlSummary[];
   records: AuditedIssueRecord[];
+  truncated?: boolean;
+  pagesFetched?: number;
+}
+
+interface AuditSnapshotRecord {
+  id: string;
+  createdAt: string;
+  label: string;
+  scopeSummary: string;
+  jql: string;
+  totalAudited: number;
+  compliantCount: number;
+  nonCompliantCount: number;
+  complianceRatePercent: number;
+  controlSummaries: ControlSummary[];
+  sha256: string;
 }
 
 let currentReport: AuditReport | null = null;
 let currentRules: AuditRuleConfig = { ...DEFAULT_RULES };
+let currentSnapshots: AuditSnapshotRecord[] = [];
 let activeFrameworkFilter: string | null = null;
 
 const projectSelect = document.getElementById('project-select') as HTMLSelectElement;
@@ -108,6 +125,7 @@ const jqlInput = document.getElementById('jql-input') as HTMLInputElement;
 const clearJqlBtn = document.getElementById('clear-jql-btn') as HTMLButtonElement;
 const runBtn = document.getElementById('run-audit-btn') as HTMLButtonElement;
 const configureRulesBtn = document.getElementById('configure-rules-btn') as HTMLButtonElement;
+const saveSnapshotBtn = document.getElementById('save-snapshot-btn') as HTMLButtonElement;
 const exportCsvBtn = document.getElementById('export-csv-btn') as HTMLButtonElement;
 const exportHtmlBtn = document.getElementById('export-html-btn') as HTMLButtonElement;
 const statusMsg = document.getElementById('status-msg') as HTMLParagraphElement;
@@ -116,6 +134,9 @@ const summaryGrid = document.getElementById('summary-grid') as HTMLElement;
 const controlsGrid = document.getElementById('controls-grid') as HTMLElement;
 const resultsCard = document.getElementById('results-card') as HTMLElement;
 const resultsBody = document.getElementById('results-body') as HTMLTableSectionElement;
+const snapshotsCard = document.getElementById('snapshots-card') as HTMLElement;
+const snapshotsCount = document.getElementById('snapshots-count') as HTMLSpanElement;
+const snapshotsBody = document.getElementById('snapshots-body') as HTMLTableSectionElement;
 const onlyViolations = document.getElementById('only-violations') as HTMLInputElement;
 const severityFilter = document.getElementById('severity-filter') as HTMLSelectElement;
 const activeFrameworkChip = document.getElementById('active-framework-chip') as HTMLSpanElement;
@@ -270,6 +291,7 @@ function renderActiveFrameworkChip(): void {
 function renderReport(report: AuditReport): void {
   summaryGrid.classList.remove('hidden');
   resultsCard.classList.remove('hidden');
+  saveSnapshotBtn.disabled = false;
   exportCsvBtn.disabled = false;
   exportHtmlBtn.disabled = false;
 
@@ -497,6 +519,92 @@ async function loadProjects(): Promise<void> {
   }
 }
 
+function buildCurrentScopeSummary(): string {
+  if (jqlInput.value.trim()) {
+    return 'Custom JQL scope';
+  }
+  const projectText =
+    projectSelect.value === ALL_PROJECTS_VALUE
+      ? 'All projects'
+      : `Project ${projectSelect.value}`;
+  const versionPart = versionSelect.value ? ` · ${versionSelect.value}` : '';
+  const rangeLabel = dateRangeSelect.options[dateRangeSelect.selectedIndex]?.textContent ?? '';
+  return `${projectText}${versionPart}${rangeLabel ? ` · ${rangeLabel}` : ''}`;
+}
+
+function renderSnapshots(snapshots: AuditSnapshotRecord[]): void {
+  currentSnapshots = snapshots;
+  snapshotsCount.textContent = `${snapshots.length} saved`;
+
+  if (snapshots.length === 0) {
+    snapshotsCard.classList.add('hidden');
+    snapshotsBody.innerHTML = '';
+    return;
+  }
+
+  snapshotsCard.classList.remove('hidden');
+  snapshotsBody.innerHTML = snapshots
+    .map((snap) => {
+      const rateBadge =
+        snap.nonCompliantCount === 0
+          ? `<span class="badge pass">${snap.complianceRatePercent}%</span>`
+          : `<span class="badge fail">${snap.complianceRatePercent}%</span>`;
+
+      return `
+        <tr>
+          <td>${escapeHtml(snap.createdAt.replace('T', ' ').slice(0, 16))}</td>
+          <td>
+            <div><strong>${escapeHtml(snap.label)}</strong></div>
+            <div class="snapshot-scope">${escapeHtml(snap.scopeSummary)}</div>
+          </td>
+          <td>${rateBadge}</td>
+          <td>${snap.compliantCount}/${snap.totalAudited} compliant</td>
+          <td>
+            <code class="hash-code" title="${escapeHtml(snap.sha256)}">${escapeHtml(snap.sha256.slice(0, 16))}…</code>
+          </td>
+          <td>
+            <button
+              type="button"
+              class="btn-tiny delete-snapshot-btn"
+              data-snapshot-id="${escapeHtml(snap.id)}"
+            >
+              Remove
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  snapshotsBody.querySelectorAll<HTMLButtonElement>('.delete-snapshot-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.snapshotId;
+      if (!id) return;
+      btn.disabled = true;
+      try {
+        const res = (await invoke('deleteAuditSnapshot', { id })) as {
+          snapshots?: AuditSnapshotRecord[];
+        };
+        renderSnapshots(res?.snapshots ?? currentSnapshots.filter((s) => s.id !== id));
+      } catch (err) {
+        statusMsg.textContent = `Failed to remove snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+async function loadSnapshots(): Promise<void> {
+  try {
+    const snapshots = (await invoke('listAuditSnapshots')) as AuditSnapshotRecord[];
+    if (Array.isArray(snapshots)) {
+      renderSnapshots(snapshots);
+    }
+  } catch {
+    // Ignore outside Forge context
+  }
+}
+
 async function executeAudit(customStatus?: string): Promise<void> {
   runBtn.disabled = true;
   statusMsg.textContent = customStatus ?? 'Running change-management audit inside Atlassian Cloud...';
@@ -514,13 +622,38 @@ async function executeAudit(customStatus?: string): Promise<void> {
       renderActiveRulesBar(currentRules);
     }
     renderReport(report);
-    statusMsg.textContent = `Audited ${report.totalAudited} change(s) at ${report.generatedAt}.`;
+    const pageInfo =
+      report.pagesFetched && report.pagesFetched > 1
+        ? ` across ${report.pagesFetched} pages`
+        : '';
+    const capInfo = report.truncated ? ' (capped at safety limit)' : '';
+    statusMsg.textContent = `Audited ${report.totalAudited} change(s)${pageInfo}${capInfo} at ${report.generatedAt}.`;
   } catch (err) {
     statusMsg.textContent = `Audit failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
   } finally {
     runBtn.disabled = false;
   }
 }
+
+saveSnapshotBtn.addEventListener('click', async () => {
+  if (!currentReport) return;
+  saveSnapshotBtn.disabled = true;
+  try {
+    const scopeSummary = buildCurrentScopeSummary();
+    const label = `Audit ${currentReport.generatedAt.slice(0, 10)}`;
+    const res = (await invoke('saveAuditSnapshot', {
+      report: currentReport,
+      label,
+      scopeSummary,
+    })) as { saved: AuditSnapshotRecord; snapshots: AuditSnapshotRecord[] };
+    renderSnapshots(res.snapshots);
+    statusMsg.textContent = `Snapshot saved to Forge KVS (SHA-256: ${res.saved.sha256.slice(0, 12)}…).`;
+  } catch (err) {
+    statusMsg.textContent = `Failed to save snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`;
+  } finally {
+    saveSnapshotBtn.disabled = false;
+  }
+});
 
 projectSelect.addEventListener('change', () => {
   void loadProjectVersions(projectSelect.value);
@@ -638,6 +771,7 @@ resetRulesBtn.addEventListener('click', async () => {
 
 void loadRulesConfig();
 void loadProjects();
+void loadSnapshots();
 
 onlyViolations.addEventListener('change', () => {
   if (currentReport) {

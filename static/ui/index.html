@@ -16,6 +16,7 @@
         </div>
         <div class="actions">
           <button id="configure-rules-btn" class="btn secondary" type="button">Configure Rules</button>
+          <button id="save-snapshot-btn" class="btn secondary" type="button" disabled>Save Snapshot</button>
           <button id="export-csv-btn" class="btn secondary" type="button" disabled>Export CSV</button>
           <button id="export-html-btn" class="btn secondary" type="button" disabled>Export Evidence Pack (HTML/PDF)</button>
         </div>
@@ -113,6 +114,33 @@
               </tr>
             </thead>
             <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="snapshots-card" class="card hidden">
+        <div class="table-header">
+          <div class="table-title-group">
+            <h2>Saved Audit Snapshots</h2>
+            <span id="snapshots-count" class="rule-pill">0 saved</span>
+          </div>
+          <span class="snapshot-note">
+            Aggregate metadata &amp; SHA-256 hashes persisted in Forge KVS (zero issue PII).
+          </span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Saved (UTC)</th>
+                <th>Label &amp; Scope</th>
+                <th>Compliance</th>
+                <th>Audited</th>
+                <th>SHA-256 Fingerprint</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="snapshots-body"></tbody>
           </table>
         </div>
       </section>

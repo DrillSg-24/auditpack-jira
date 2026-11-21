@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-11-22
 > **Official Public Brand:** `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`
-> **Current Phase:** Phase 2 — Week 2 Core Dashboard Complete (`PG-4`, `PG-5`, `PG-6`, `PG-9` Done); Audit Engine Hardening & KVS Snapshots Next
+> **Current Phase:** Phase 3 — Week 2 100% Complete (`PG-4`–`PG-8` + `PG-9` Done & Deployed); Starting Week 3 Conversion & Anti-Churn Suite (`PG-10`–`PG-15`)
 
 ---
 
@@ -13,13 +13,13 @@
 - **Pricing:** Free `1–10` users · `$1.25/u` (`11–100`) · `$0.85/u` (`101–250`) · `$0.45/u` (`251–1,000`) · `$0.20/u` (`1,001+`) + ~17% annual discount.
 - **Target Goal (Year 1):** €3,000–€5,000 total / ramping to €1,000/month (~7 mid-sized Jira teams or 2 annual 250-seat teams).
 - **Jira Delivery Workflow (`drillsgdev.atlassian.net`, project `PG`):**
-  - Epics: `PG-1` (Week 2), `PG-2` (Week 3), `PG-3` (Week 4); child tasks `PG-4`–`PG-19`.
+  - Epics: `PG-1` (Week 2 — Complete), `PG-2` (Week 3 — Active), `PG-3` (Week 4); child tasks `PG-4`–`PG-19`.
   - Move every task through **`To Do (11) → In Progress (21) → In Review (31) → Done (41)`** and leave a short implementation note comment upon completion (doubles as real change-history dogfooding data for ProofGate).
 - **Tech Stack & Dev Notes:**
   - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
   - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
-  - Tests: Vitest (`tests/` — currently **15/15 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`).
-  - Main Dev Environment: **WSL Ubuntu (Node 24 LTS via `fnm`)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`). Note: `@forge/cli` requires Node `^24.22.1` (upgrade `fnm` from `v24.19.0` via `fnm install 24 && fnm default 24` before `forge lint` / `forge deploy`).
+  - Tests: Vitest (`tests/` — currently **29/29 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`).
+  - Main Dev Environment: **WSL Ubuntu (Node `v24.22.3` via `fnm`)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`).
 
 ---
 
@@ -34,12 +34,12 @@
 - [x] Commit & push everything cleanly to private personal GitHub repo.
 - [x] Smoke-test **AuditPack Compliance** live in `drillsgdev.atlassian.net` with sample tickets (`TSS-1`, `TSS-2`) and verified SHA-256 CSV + HTML Evidence Pack downloads!
 
-### Week 2 — Hardening the Audit Engine, Rules UI & Live Jira Polish (`PG-1`)
+### Week 2 — Hardening the Audit Engine, Rules UI & Live Jira Polish (`PG-1`) — COMPLETE
 - [x] Add **Rules Configuration UI** (edit Done/Review/Initial statuses & rule toggles, persisted in `@forge/kvs` via `saveRulesConfig`). (`PG-4`)
 - [x] Add **non-JQL filter pickers** (Project dropdown, FixVersion dropdown, Date Range presets: Last 30/90/365 days) alongside optional Advanced JQL. (`PG-5`)
 - [x] Polish **Findings column** (structured pill badges per violation instead of semicolon paragraph) + show **SOC 2 / ISO 27001 / EU DORA Control Summary** cards directly in the dashboard UI. (`PG-6`)
-- [ ] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues. (`PG-7`)
-- [ ] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts). (`PG-8`)
+- [x] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues. (`PG-7`)
+- [x] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts). (`PG-8`)
 
 ### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports (`PG-2`)
 - [x] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`). (`PG-9`)
@@ -59,9 +59,8 @@
 ---
 
 ## 3. Immediate Next Step (Pick Up Here Next Session)
-1. **Start `PG-7`** (*Harden audit engine edge cases, unit tests & >50 issue pagination*) — move `PG-7` to `In Progress` (`21`) on `drillsgdev.atlassian.net`:
-   - Harden `src/audit/rulesEngine.ts` + `src/index.ts` for reopened issues (verify review happened *after* latest reopen, not stale pre-reopen approval), bulk transitions, deleted/anonymized Jira accounts (`accountId` missing/unknown), multi-step approval chains, and `nextPageToken` pagination tests (>50 issues).
-   - Add thorough unit tests in `tests/rulesEngine.test.ts` (and a pagination test for `fetchIssuesWithChangelog`).
-2. **Follow with `PG-8`** (*Persist Audit Snapshot History metadata & SHA-256 hashes in `@forge/kvs`*) — move `PG-8` to `In Progress` (`21`):
-   - Add `src/audit/snapshots.ts` + KVS resolvers (`saveAuditSnapshot`, `listAuditSnapshots`) in `src/index.ts` storing compact, PII-free snapshot metadata + SHA-256 hash + compliance counts (feeds `PG-13` trendline UI in Week 3).
-3. **Optional live smoke-test deploy:** Upgrade Node in WSL (`fnm install 24 && fnm default 24`), run `npm test && npm run build && forge lint && forge deploy`, and test the new **ProofGate** UI live against project `PG` on `drillsgdev.atlassian.net`!
+1. **Live Smoke-Test Week 2 Build on `drillsgdev.atlassian.net`:** Open **ProofGate Evidence** inside project `PG` to verify Project/FixVersion/Date pickers, Rules Configuration drawer, SOC 2 / ISO / DORA control cards, pill findings, and Save Snapshot against real `PG-4`–`PG-9` history.
+2. **Start Week 3 — `PG-10` & `PG-11`:**
+   - **`PG-10` (10-Second Zero-Setup Auto-Discovery):** Add `discoverProjectStatuses` resolver (`/rest/api/3/project/{key}/statuses`) in `src/index.ts` + pure classifier in `src/audit/statusDiscovery.ts` (`review|qa|test|approv|cab` → Review, `statusCategory.key === 'done'` → Done), plus auto-run 90-day preview on first open.
+   - **`PG-11` (1-Click Auditor Random Sample `N = 25` with Verifiable Seed):** Add pure deterministic seeded Fisher-Yates sampler in `src/audit/sampler.ts` + UI toggle + print Population Size, Sample Size, Random Seed, and SHA-256 hash in CSV & HTML/PDF exports.
+   - Remember to transition each Jira ticket through `In Progress (21) → In Review (31) → Done (41)` with an implementation note.
