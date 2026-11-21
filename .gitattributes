@@ -1,0 +1,10 @@
+# Enforce LF line endings across Windows, macOS, and Linux
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

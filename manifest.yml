@@ -1,0 +1,33 @@
+modules:
+  jira:projectPage:
+    - key: auditpack-project-page
+      resource: ui-main
+      resolver:
+        function: audit-resolver
+      title: AuditPack Evidence
+      layout: blank
+  jira:globalPage:
+    - key: auditpack-global-page
+      resource: ui-main
+      resolver:
+        function: audit-resolver
+      title: AuditPack Compliance
+      layout: blank
+  function:
+    - key: audit-resolver
+      handler: index.handler
+resources:
+  - key: ui-main
+    path: static/ui/dist
+permissions:
+  scopes:
+    - read:jira-work
+    - read:jira-user
+    - storage:app
+  # Intentionally NO external egress permissions to preserve
+  # "Runs on Atlassian" zero-egress eligibility.
+app:
+  runtime:
+    name: nodejs22.x
+  # Replace by running `forge register` after logging in with `forge login`
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000

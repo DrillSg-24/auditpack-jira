@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuditPack — Jira Change-Management Evidence</title>
+  </head>
+  <body>
+    <main id="app" class="container">
+      <header class="header">
+        <div>
+          <h1>AuditPack Evidence</h1>
+          <p class="subtitle">
+            Runs 100% on Atlassian — zero external data egress. SOC 2 CC8.1 · ISO 27001 A.8.32 · EU DORA.
+          </p>
+        </div>
+        <div class="actions">
+          <button id="export-csv-btn" class="btn secondary" disabled>Export CSV</button>
+          <button id="export-html-btn" class="btn secondary" disabled>Export Evidence Pack (HTML/PDF)</button>
+        </div>
+      </header>
+
+      <section class="card controls">
+        <label for="jql-input">Scope (JQL — leave blank for current project Done issues)</label>
+        <div class="input-row">
+          <input
+            id="jql-input"
+            type="text"
+            placeholder='e.g. project = "PAY" AND statusCategory = Done AND updated >= -90d'
+          />
+          <button id="run-audit-btn" class="btn primary">Run Audit</button>
+        </div>
+        <p id="status-msg" class="status-msg"></p>
+      </section>
+
+      <section id="summary-grid" class="summary-grid hidden"></section>
+
+      <section id="results-card" class="card hidden">
+        <div class="table-header">
+          <h2>Audited Changes</h2>
+          <label class="checkbox-label">
+            <input id="only-violations" type="checkbox" />
+            Show exceptions only
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Summary</th>
+                <th>Assignee</th>
+                <th>Approver</th>
+                <th>Completed</th>
+                <th>Status</th>
+                <th>Findings</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
