@@ -14,7 +14,7 @@ uses `AGENTS.md` + `docs/PROJECT_STATE.md` + Git as portable session memory.
 
 ## Mode 1: Unpack Session (Starting on a New Machine or Fresh Chat)
 When the user asks to **unpack**, **resume**, or **catch up**:
-1. Read `AGENTS.md` and `docs/PROJECT_STATE.md` in full.
+1. Read `AGENTS.md`, `docs/PRODUCT_BRIEF.md`, and `docs/PROJECT_STATE.md` in full.
 2. Run `git status -sb` and `git log -n 5 --oneline` to verify working tree state and recent commits.
 3. Reply with a concise 5-bullet briefing:
    - Current phase & last completed milestone

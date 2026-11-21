@@ -24,9 +24,10 @@ Build and launch **AuditPack for Jira**, a read-only, zero-egress **"Runs on Atl
 - `src/audit/rulesEngine.ts` — Pure, deterministic audit evaluator (framework-agnostic, fully unit-tested).
 - `tests/` — Vitest unit tests for the audit engine.
 - `static/ui/` — Lightweight Vite + TypeScript Custom UI dashboard (`@forge/bridge`) + client-side CSV/HTML report & SHA-256 generator.
+- `docs/PRODUCT_BRIEF.md` — Founder constraints, business goals, competitive edge, and "Do Not Revisit" guardrails.
 - `docs/PROJECT_STATE.md` — Living project memory, decisions, roadmap, and current session handoff state.
 - `.agents/skills/session-handoff/SKILL.md` — Skill for packing/unpacking sessions across machines.
 
 ## Multi-Machine Session Workflow
-- When starting a session on any machine, read `docs/PROJECT_STATE.md` first (or invoke the `session-handoff` skill to unpack).
+- When starting a session on any machine, read `docs/PRODUCT_BRIEF.md` and `docs/PROJECT_STATE.md` first (or invoke the `session-handoff` skill to unpack).
 - Before switching machines, update `docs/PROJECT_STATE.md` (pack session) and commit + push to Git.
