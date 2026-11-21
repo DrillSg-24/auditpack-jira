@@ -6,7 +6,7 @@ import {
   ComplianceFramework,
   ControlSummary,
   NormalizedJiraIssue,
-} from './types.js';
+} from './types';
 
 const CONTROL_LABELS: Record<ComplianceFramework, string> = {
   SOC2_CC8_1: 'SOC 2 — CC8.1 (Change Authorization & Testing)',

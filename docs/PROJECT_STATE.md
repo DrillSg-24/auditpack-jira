@@ -1,7 +1,7 @@
 # Project State & Session Handoff — `auditpack-jira`
 
 > **Last Updated:** 2026-11-21
-> **Current Phase:** Phase 0 — Dev Infrastructure & Repo Scaffolded
+> **Current Phase:** Phase 1 — MVP Deployed & Installed on Dev Jira (`drillsgdev.atlassian.net`)
 
 ---
 
@@ -16,7 +16,7 @@
   - 101–250 users: `$1.10 / user / month`
   - 251+ users: `$0.75 / user / month`
 - **Tech Stack:**
-  - Backend: Atlassian Forge (`nodejs22.x`, TypeScript, `@forge/api`, `@forge/resolver`, `@forge/storage`).
+  - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
   - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
   - Tests: Vitest (`tests/`).
 - **Germany / Legal Reminders (before enabling paid Marketplace billing):**
@@ -31,16 +31,18 @@
 ### Week 1 — Setup, Sandbox & Jira Data Fetcher
 - [x] Initialize repo structure, cross-OS Git hygiene (`.gitattributes`, `.gitignore`, `.nvmrc`).
 - [x] Add `AGENTS.md`, `docs/PROJECT_STATE.md`, and `.agents/skills/session-handoff/SKILL.md`.
-- [x] Scaffold `manifest.yml` (zero-egress), TypeScript audit rules engine, Forge resolvers, Vitest tests, and Vite+TS Custom UI shell.
-- [ ] Run `git init`, create initial commit, and push to private personal GitHub repo.
-- [ ] Install Node 22 LTS + `@forge/cli` (`npm i -g @forge/cli`), create free Jira Cloud dev site (`go.atlassian.com/cloud-dev`).
-- [ ] Run `forge login` and `forge register` (updates placeholder `app.id` in `manifest.yml`).
-- [ ] Run `npm install` (root + `static/ui/`), verify `npm test`, `npm run build`, `forge lint`, `forge deploy`, and `forge install`.
+- [x] Scaffold `manifest.yml` (zero-egress, `nodejs24.x`), TypeScript audit rules engine, Forge resolvers (`@forge/kvs`), Vitest tests, and Vite+TS Custom UI shell.
+- [x] Install `@forge/cli`, create free Jira Cloud dev site (`drillsgdev.atlassian.net`), run `forge login` + `forge register`.
+- [x] Pass `npm test`, `npm run build`, `forge lint` (0 errors, 0 warnings), `forge deploy`, and `forge install` onto `drillsgdev.atlassian.net`.
+- [ ] Commit & push everything cleanly to private personal GitHub repo.
+- [x] Smoke-test **AuditPack Compliance** live in `drillsgdev.atlassian.net` with sample tickets (`TSS-1`, `TSS-2`) and verified SHA-256 CSV + HTML Evidence Pack downloads!
 
-### Week 2 — Hardening the Audit Engine & Live Jira Verification
-- [ ] Verify Jira Cloud `/rest/api/3/search/jql` pagination (`nextPageToken`) and `expand=changelog` against real sample tickets in the dev site.
-- [ ] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, FixVersion/project selector loading.
-- [ ] Add saved audit history snapshots in Forge Storage (metadata + SHA-256 hash + summary counts).
+### Week 2 — Hardening the Audit Engine, Rules UI & Live Jira Polish
+- [ ] Add **Rules Configuration UI** (edit Done/Review/Initial statuses & rule toggles, persisted in `@forge/kvs` via `saveRulesConfig`).
+- [ ] Add **non-JQL filter pickers** (Project dropdown, FixVersion dropdown, Date Range presets: Last 30/90/365 days) alongside optional Advanced JQL.
+- [ ] Polish **Findings column** (structured pill badges per violation instead of semicolon paragraph) + show **SOC 2 / ISO 27001 / EU DORA Control Summary** cards directly in the dashboard UI.
+- [ ] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues.
+- [ ] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts).
 
 ### Week 3 — Dashboard Polish & Auditor-Ready Exports
 - [ ] Polish Vite + TS Custom UI: project/version/date-range/JQL filters, rule configuration modal, compliance KPI cards, exception table with severity filter.
@@ -55,6 +57,8 @@
 ---
 
 ## 3. Immediate Next Step (Pick Up Here Next Session)
-1. Initialize Git locally (`git init`) and push to a private personal GitHub repo.
-2. Verify Node 22 + npm on the active machine, run `npm install` (root & `static/ui`), and run `npm test` to confirm the core audit rules engine passes out of the box.
-3. Set up the free Atlassian Jira Cloud developer site and run `forge register`.
+1. Commit and push to your private personal GitHub repo so you can resume cleanly on any machine (`git pull` → `"unpack session"`).
+2. Start Week 2:
+   - Build the **Rules Configuration drawer** (custom Done/Review statuses & rule toggles saved to `@forge/kvs`)
+   - Add **Project / FixVersion / Date Range** dropdown filters (so compliance managers don't need raw JQL)
+   - Upgrade **Findings** rendering to clean pill badges + surface the **SOC 2 / ISO 27001 / EU DORA** control summary cards in the main UI.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildAuditReport, evaluateIssue } from '../src/audit/rulesEngine.js';
-import { DEFAULT_AUDIT_RULES, NormalizedJiraIssue } from '../src/audit/types.js';
+import { buildAuditReport, evaluateIssue } from '../src/audit/rulesEngine';
+import { DEFAULT_AUDIT_RULES, NormalizedJiraIssue } from '../src/audit/types';
 
 const devAlice = { accountId: 'acc-alice', displayName: 'Alice Dev' };
 const qaBob = { accountId: 'acc-bob', displayName: 'Bob Reviewer' };

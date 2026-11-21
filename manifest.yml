@@ -28,6 +28,5 @@ permissions:
   # "Runs on Atlassian" zero-egress eligibility.
 app:
   runtime:
-    name: nodejs22.x
-  # Replace by running `forge register` after logging in with `forge login`
-  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+    name: nodejs24.x
+  id: ari:cloud:ecosystem::app/a2815c7e-f9fd-4485-940e-2be718397d42

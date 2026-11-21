@@ -1,13 +1,13 @@
 import api, { route } from '@forge/api';
+import { kvs } from '@forge/kvs';
 import Resolver from '@forge/resolver';
-import { storage } from '@forge/storage';
-import { buildAuditReport } from './audit/rulesEngine.js';
+import { buildAuditReport } from './audit/rulesEngine';
 import {
   AuditRuleConfig,
   DEFAULT_AUDIT_RULES,
   NormalizedJiraIssue,
   StatusTransition,
-} from './audit/types.js';
+} from './audit/types';
 
 const RULES_STORAGE_KEY = 'auditpack:rules:v1';
 const MAX_ISSUES_PER_RUN = 250;
@@ -157,7 +157,7 @@ async function fetchIssuesWithChangelog(jql: string): Promise<NormalizedJiraIssu
 const resolver = new Resolver();
 
 resolver.define('getRulesConfig', async (): Promise<AuditRuleConfig> => {
-  const saved = (await storage.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined;
+  const saved = (await kvs.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined;
   return saved ?? DEFAULT_AUDIT_RULES;
 });
 
@@ -175,7 +175,7 @@ resolver.define('saveRulesConfig', async (req): Promise<AuditRuleConfig> => {
       payload.enforceSeparationOfDuties ?? DEFAULT_AUDIT_RULES.enforceSeparationOfDuties,
     requireTraceability: payload.requireTraceability ?? DEFAULT_AUDIT_RULES.requireTraceability,
   };
-  await storage.set(RULES_STORAGE_KEY, merged);
+  await kvs.set(RULES_STORAGE_KEY, merged);
   return merged;
 });
 
@@ -185,7 +185,7 @@ resolver.define('runAudit', async (req) => {
     ?.key;
 
   const rules =
-    ((await storage.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined) ?? DEFAULT_AUDIT_RULES;
+    ((await kvs.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined) ?? DEFAULT_AUDIT_RULES;
 
   const defaultJql = projectKey
     ? `project = "${projectKey}" AND statusCategory = Done ORDER BY updated DESC`

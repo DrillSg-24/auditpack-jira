@@ -6,7 +6,7 @@ Build and launch **AuditPack for Jira**, a read-only, zero-egress **"Runs on Atl
 ## Non-Negotiable Architecture & Compliance Constraints
 1. **"Runs on Atlassian" Zero-Egress Rule:**
    - NEVER add external `permissions.external.fetch`, `remotes`, or external backend servers to `manifest.yml`.
-   - All compute runs on Atlassian Forge (`nodejs22.x`); all persistence uses Forge Storage (`@forge/storage`); all CSV/HTML/PDF report generation and SHA-256 hashing run client-side inside the Forge Custom UI bundle.
+   - All compute runs on Atlassian Forge (`nodejs24.x`); all persistence uses Forge KVS (`@forge/kvs`); all CSV/HTML/PDF report generation and SHA-256 hashing run client-side inside the Forge Custom UI bundle.
 2. **Atlassian Ecoscanner & Security Hygiene:**
    - NEVER use `eval()`, `new Function()`, or dynamic code execution.
    - NEVER use user API tokens; always authenticate via `@forge/api` (`asUser()` or `asApp()`) with least-privilege OAuth scopes (`read:jira-work`, `read:jira-user`, `storage:app`).
@@ -14,7 +14,7 @@ Build and launch **AuditPack for Jira**, a read-only, zero-egress **"Runs on Atl
    - Read-only by design: do NOT request `write:jira-work` unless explicitly decided in `docs/PROJECT_STATE.md`.
 3. **Cross-OS Portability (Windows + macOS + Linux):**
    - Always use LF line endings (`.gitattributes` enforces `eol=lf`).
-   - Target Node.js 22 LTS (`.nvmrc`).
+   - Target Node.js 24 LTS (`.nvmrc`; Forge cloud runtime `nodejs24.x`).
    - Keep `static/ui/vite.config.ts` configured with `base: './'` so Forge Custom UI relative assets load reliably.
 
 ## Repository Layout
