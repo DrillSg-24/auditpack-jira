@@ -1,10 +1,10 @@
-# AuditPack for Jira (Atlassian Forge)
+# ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira
 
-Zero-egress **"Runs on Atlassian"** Forge app that audits Jira change-management history (Separation of Duties, mandatory review/QA sign-offs, workflow bypasses, and traceability) and exports auditor-ready **SOC 2 CC8.1**, **ISO 27001 A.8.32**, and **EU DORA** evidence packs.
+Zero-egress **"Runs on Atlassian"** Forge app (`auditpack-jira`) that audits Jira change-management history (Separation of Duties, mandatory review/QA sign-offs, workflow bypasses, and traceability) and exports auditor-ready **SOC 2 CC8.1**, **ISO 27001 A.8.32**, and **EU DORA Art. 9** evidence packs.
 
 ## Prerequisites (Windows, macOS, Linux)
 - **Git** (personal GitHub account + SSH key)
-- **Node.js 22 LTS** (see `.nvmrc`) + **npm**
+- **Node.js 24 LTS** (see `.nvmrc`) + **npm**
 - **Atlassian Forge CLI**: `npm install -g @forge/cli`
 - Free Atlassian Jira Cloud developer site: `https://go.atlassian.com/cloud-dev`
 

@@ -3,20 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AuditPack — Jira Change-Management Evidence</title>
+    <title>ProofGate — SOC 2, ISO 27001 &amp; DORA Audit for Jira</title>
   </head>
   <body>
     <main id="app" class="container">
       <header class="header">
         <div>
-          <h1>AuditPack Evidence</h1>
+          <h1>ProofGate</h1>
           <p class="subtitle">
-            Runs 100% on Atlassian — zero external data egress. SOC 2 CC8.1 · ISO 27001 A.8.32 · EU DORA.
+            SOC 2 CC8.1 · ISO 27001 A.8.32 · EU DORA Art. 9 · 100% Runs on Atlassian (Zero Egress)
           </p>
         </div>
         <div class="actions">
-          <button id="export-csv-btn" class="btn secondary" disabled>Export CSV</button>
-          <button id="export-html-btn" class="btn secondary" disabled>Export Evidence Pack (HTML/PDF)</button>
+          <button id="configure-rules-btn" class="btn secondary" type="button">Configure Rules</button>
+          <button id="export-csv-btn" class="btn secondary" type="button" disabled>Export CSV</button>
+          <button id="export-html-btn" class="btn secondary" type="button" disabled>Export Evidence Pack (HTML/PDF)</button>
         </div>
       </header>
 
@@ -28,8 +29,9 @@
             type="text"
             placeholder='e.g. project = "PAY" AND statusCategory = Done AND updated >= -90d'
           />
-          <button id="run-audit-btn" class="btn primary">Run Audit</button>
+          <button id="run-audit-btn" class="btn primary" type="button">Run Audit</button>
         </div>
+        <div id="active-rules-bar" class="rules-bar"></div>
         <p id="status-msg" class="status-msg"></p>
       </section>
 
@@ -61,6 +63,123 @@
         </div>
       </section>
     </main>
+
+    <div id="rules-drawer-backdrop" class="drawer-backdrop hidden" aria-hidden="true">
+      <aside
+        id="rules-drawer"
+        class="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rules-drawer-title"
+      >
+        <div class="drawer-header">
+          <div>
+            <h2 id="rules-drawer-title">Audit Rules Configuration</h2>
+            <p class="drawer-subtitle">
+              Saved securely in Atlassian Forge Storage (zero external egress).
+            </p>
+          </div>
+          <button id="close-rules-btn" class="icon-btn" type="button" aria-label="Close rules drawer">
+            &times;
+          </button>
+        </div>
+
+        <form id="rules-form" class="drawer-form" novalidate>
+          <div class="drawer-body">
+            <div class="form-section">
+              <h3>Workflow Status Mapping</h3>
+              <p class="section-hint">
+                Enter comma-separated Jira status names (case-insensitive matching).
+              </p>
+
+              <div class="field">
+                <label for="rule-done-statuses">Done / Released Statuses</label>
+                <input
+                  id="rule-done-statuses"
+                  type="text"
+                  placeholder="Done, Released, Closed, Deployed"
+                  required
+                />
+                <span class="field-hint">
+                  Completed statuses subject to change-management compliance checks.
+                </span>
+                <div id="preview-done-statuses" class="chip-preview"></div>
+              </div>
+
+              <div class="field">
+                <label for="rule-review-statuses">Review / QA / Approval Statuses</label>
+                <input
+                  id="rule-review-statuses"
+                  type="text"
+                  placeholder="In Review, Code Review, QA, Approved, Ready for Release"
+                  required
+                />
+                <span class="field-hint">
+                  Issues must pass through at least one of these statuses before Done.
+                </span>
+                <div id="preview-review-statuses" class="chip-preview"></div>
+              </div>
+
+              <div class="field">
+                <label for="rule-initial-statuses">Initial / Draft Statuses</label>
+                <input
+                  id="rule-initial-statuses"
+                  type="text"
+                  placeholder="To Do, Open, Backlog, In Progress"
+                  required
+                />
+                <span class="field-hint">
+                  Direct transitions from these statuses to Done flag a Workflow Bypass.
+                </span>
+                <div id="preview-initial-statuses" class="chip-preview"></div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3>Compliance Control Toggles</h3>
+
+              <label class="toggle-card" for="rule-sod-toggle">
+                <input id="rule-sod-toggle" type="checkbox" />
+                <div>
+                  <div class="toggle-title">
+                    Enforce Separation of Duties (SoD)
+                    <span class="framework-tag">SOC 2 CC8.1 · ISO 27001 · DORA</span>
+                  </div>
+                  <div class="toggle-desc">
+                    Flag changes where the assignee (or creator if unassigned) approved or closed
+                    their own ticket.
+                  </div>
+                </div>
+              </label>
+
+              <label class="toggle-card" for="rule-traceability-toggle">
+                <input id="rule-traceability-toggle" type="checkbox" />
+                <div>
+                  <div class="toggle-title">
+                    Require Change Traceability
+                    <span class="framework-tag">ISO 27001 A.8.32 · DORA Art. 9</span>
+                  </div>
+                  <div class="toggle-desc">
+                    Flag completed changes with no parent epic, linked issue, or release FixVersion.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <p id="rules-feedback" class="rules-feedback hidden" role="alert"></p>
+          </div>
+
+          <div class="drawer-footer">
+            <button id="reset-rules-btn" class="btn ghost" type="button">Reset Defaults</button>
+            <div class="drawer-footer-right">
+              <button id="cancel-rules-btn" class="btn secondary" type="button">Cancel</button>
+              <button id="save-rules-btn" class="btn primary" type="submit">Save Rules</button>
+            </div>
+          </div>
+        </form>
+      </aside>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

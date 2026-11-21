@@ -4,14 +4,14 @@ modules:
       resource: ui-main
       resolver:
         function: audit-resolver
-      title: AuditPack Evidence
+      title: ProofGate Evidence
       layout: blank
   jira:globalPage:
     - key: auditpack-global-page
       resource: ui-main
       resolver:
         function: audit-resolver
-      title: AuditPack Compliance
+      title: ProofGate Compliance
       layout: blank
   function:
     - key: audit-resolver

@@ -32,14 +32,14 @@
 - [x] Smoke-test **AuditPack Compliance** live in `drillsgdev.atlassian.net` with sample tickets (`TSS-1`, `TSS-2`) and verified SHA-256 CSV + HTML Evidence Pack downloads!
 
 ### Week 2 — Hardening the Audit Engine, Rules UI & Live Jira Polish
-- [ ] Add **Rules Configuration UI** (edit Done/Review/Initial statuses & rule toggles, persisted in `@forge/kvs` via `saveRulesConfig`).
+- [x] Add **Rules Configuration UI** (edit Done/Review/Initial statuses & rule toggles, persisted in `@forge/kvs` via `saveRulesConfig`). (`PG-4`)
 - [ ] Add **non-JQL filter pickers** (Project dropdown, FixVersion dropdown, Date Range presets: Last 30/90/365 days) alongside optional Advanced JQL.
 - [ ] Polish **Findings column** (structured pill badges per violation instead of semicolon paragraph) + show **SOC 2 / ISO 27001 / EU DORA Control Summary** cards directly in the dashboard UI.
 - [ ] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues.
 - [ ] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts).
 
 ### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports
-- [ ] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`).
+- [x] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`). (`PG-9`)
 - [ ] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open.
 - [ ] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports.
 - [ ] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs.

@@ -30,9 +30,26 @@ interface ControlSummary {
   failed: number;
 }
 
+interface AuditRuleConfig {
+  doneStatuses: string[];
+  reviewStatuses: string[];
+  initialStatuses: string[];
+  enforceSeparationOfDuties: boolean;
+  requireTraceability: boolean;
+}
+
+const DEFAULT_RULES: AuditRuleConfig = {
+  doneStatuses: ['Done', 'Released', 'Closed', 'Deployed'],
+  reviewStatuses: ['In Review', 'Code Review', 'QA', 'Approved', 'Ready for Release'],
+  initialStatuses: ['To Do', 'Open', 'Backlog', 'In Progress'],
+  enforceSeparationOfDuties: true,
+  requireTraceability: true,
+};
+
 interface AuditReport {
   generatedAt: string;
   jql: string;
+  rules?: AuditRuleConfig;
   totalAudited: number;
   compliantCount: number;
   nonCompliantCount: number;
@@ -42,16 +59,36 @@ interface AuditReport {
 }
 
 let currentReport: AuditReport | null = null;
+let currentRules: AuditRuleConfig = { ...DEFAULT_RULES };
 
 const jqlInput = document.getElementById('jql-input') as HTMLInputElement;
 const runBtn = document.getElementById('run-audit-btn') as HTMLButtonElement;
+const configureRulesBtn = document.getElementById('configure-rules-btn') as HTMLButtonElement;
 const exportCsvBtn = document.getElementById('export-csv-btn') as HTMLButtonElement;
 const exportHtmlBtn = document.getElementById('export-html-btn') as HTMLButtonElement;
 const statusMsg = document.getElementById('status-msg') as HTMLParagraphElement;
+const activeRulesBar = document.getElementById('active-rules-bar') as HTMLDivElement;
 const summaryGrid = document.getElementById('summary-grid') as HTMLElement;
 const resultsCard = document.getElementById('results-card') as HTMLElement;
 const resultsBody = document.getElementById('results-body') as HTMLTableSectionElement;
 const onlyViolations = document.getElementById('only-violations') as HTMLInputElement;
+
+// Rules drawer elements
+const rulesBackdrop = document.getElementById('rules-drawer-backdrop') as HTMLDivElement;
+const closeRulesBtn = document.getElementById('close-rules-btn') as HTMLButtonElement;
+const cancelRulesBtn = document.getElementById('cancel-rules-btn') as HTMLButtonElement;
+const resetRulesBtn = document.getElementById('reset-rules-btn') as HTMLButtonElement;
+const saveRulesBtn = document.getElementById('save-rules-btn') as HTMLButtonElement;
+const rulesForm = document.getElementById('rules-form') as HTMLFormElement;
+const doneStatusesInput = document.getElementById('rule-done-statuses') as HTMLInputElement;
+const reviewStatusesInput = document.getElementById('rule-review-statuses') as HTMLInputElement;
+const initialStatusesInput = document.getElementById('rule-initial-statuses') as HTMLInputElement;
+const previewDoneStatuses = document.getElementById('preview-done-statuses') as HTMLDivElement;
+const previewReviewStatuses = document.getElementById('preview-review-statuses') as HTMLDivElement;
+const previewInitialStatuses = document.getElementById('preview-initial-statuses') as HTMLDivElement;
+const sodToggle = document.getElementById('rule-sod-toggle') as HTMLInputElement;
+const traceabilityToggle = document.getElementById('rule-traceability-toggle') as HTMLInputElement;
+const rulesFeedback = document.getElementById('rules-feedback') as HTMLParagraphElement;
 
 function escapeHtml(value: string): string {
   return value
@@ -138,12 +175,103 @@ function renderReport(report: AuditReport): void {
     .join('');
 }
 
-runBtn.addEventListener('click', async () => {
+function parseCommaSeparatedStatuses(raw: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of raw.split(',')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function renderStatusChips(container: HTMLElement, statuses: string[]): void {
+  if (statuses.length === 0) {
+    container.innerHTML = '<span class="status-chip empty">At least one status required</span>';
+    return;
+  }
+  container.innerHTML = statuses
+    .map((status) => `<span class="status-chip">${escapeHtml(status)}</span>`)
+    .join('');
+}
+
+function renderActiveRulesBar(rules: AuditRuleConfig): void {
+  const sodClass = rules.enforceSeparationOfDuties ? 'on' : 'off';
+  const traceClass = rules.requireTraceability ? 'on' : 'off';
+  activeRulesBar.innerHTML = `
+    <span>Active rules:</span>
+    <span class="rule-pill ${sodClass}">SoD: ${rules.enforceSeparationOfDuties ? 'ON' : 'OFF'}</span>
+    <span class="rule-pill ${traceClass}">Traceability: ${rules.requireTraceability ? 'ON' : 'OFF'}</span>
+    <span class="rule-pill">Review: ${rules.reviewStatuses.length}</span>
+    <span class="rule-pill">Done: ${rules.doneStatuses.length}</span>
+    <button id="inline-edit-rules-btn" class="link-btn" type="button">Edit rules</button>
+  `;
+  const inlineBtn = document.getElementById('inline-edit-rules-btn');
+  inlineBtn?.addEventListener('click', () => openRulesDrawer());
+}
+
+function showRulesFeedback(message: string, kind: 'error' | 'success'): void {
+  rulesFeedback.textContent = message;
+  rulesFeedback.className = `rules-feedback ${kind}`;
+}
+
+function clearRulesFeedback(): void {
+  rulesFeedback.textContent = '';
+  rulesFeedback.className = 'rules-feedback hidden';
+}
+
+function populateRulesForm(rules: AuditRuleConfig): void {
+  doneStatusesInput.value = rules.doneStatuses.join(', ');
+  reviewStatusesInput.value = rules.reviewStatuses.join(', ');
+  initialStatusesInput.value = rules.initialStatuses.join(', ');
+  sodToggle.checked = rules.enforceSeparationOfDuties;
+  traceabilityToggle.checked = rules.requireTraceability;
+
+  renderStatusChips(previewDoneStatuses, rules.doneStatuses);
+  renderStatusChips(previewReviewStatuses, rules.reviewStatuses);
+  renderStatusChips(previewInitialStatuses, rules.initialStatuses);
+}
+
+function openRulesDrawer(): void {
+  clearRulesFeedback();
+  populateRulesForm(currentRules);
+  rulesBackdrop.classList.remove('hidden');
+  rulesBackdrop.setAttribute('aria-hidden', 'false');
+  doneStatusesInput.focus();
+}
+
+function closeRulesDrawer(): void {
+  rulesBackdrop.classList.add('hidden');
+  rulesBackdrop.setAttribute('aria-hidden', 'true');
+  configureRulesBtn.focus();
+}
+
+async function loadRulesConfig(): Promise<void> {
+  try {
+    const saved = (await invoke('getRulesConfig')) as AuditRuleConfig;
+    if (saved && Array.isArray(saved.doneStatuses)) {
+      currentRules = saved;
+    }
+  } catch {
+    // Keep DEFAULT_RULES when running outside Forge or before first save.
+  }
+  renderActiveRulesBar(currentRules);
+}
+
+async function executeAudit(customStatus?: string): Promise<void> {
   runBtn.disabled = true;
-  statusMsg.textContent = 'Running change-management audit inside Atlassian Cloud...';
+  statusMsg.textContent = customStatus ?? 'Running change-management audit inside Atlassian Cloud...';
   try {
     const report = (await invoke('runAudit', { jql: jqlInput.value })) as AuditReport;
     currentReport = report;
+    if (report.rules) {
+      currentRules = report.rules;
+      renderActiveRulesBar(currentRules);
+    }
     renderReport(report);
     statusMsg.textContent = `Audited ${report.totalAudited} change(s) at ${report.generatedAt}.`;
   } catch (err) {
@@ -151,7 +279,109 @@ runBtn.addEventListener('click', async () => {
   } finally {
     runBtn.disabled = false;
   }
+}
+
+runBtn.addEventListener('click', () => {
+  void executeAudit();
 });
+
+configureRulesBtn.addEventListener('click', () => openRulesDrawer());
+closeRulesBtn.addEventListener('click', () => closeRulesDrawer());
+cancelRulesBtn.addEventListener('click', () => closeRulesDrawer());
+
+rulesBackdrop.addEventListener('click', (event) => {
+  if (event.target === rulesBackdrop) {
+    closeRulesDrawer();
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !rulesBackdrop.classList.contains('hidden')) {
+    closeRulesDrawer();
+  }
+});
+
+doneStatusesInput.addEventListener('input', () => {
+  renderStatusChips(previewDoneStatuses, parseCommaSeparatedStatuses(doneStatusesInput.value));
+});
+reviewStatusesInput.addEventListener('input', () => {
+  renderStatusChips(previewReviewStatuses, parseCommaSeparatedStatuses(reviewStatusesInput.value));
+});
+initialStatusesInput.addEventListener('input', () => {
+  renderStatusChips(previewInitialStatuses, parseCommaSeparatedStatuses(initialStatusesInput.value));
+});
+
+rulesForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  clearRulesFeedback();
+
+  const doneStatuses = parseCommaSeparatedStatuses(doneStatusesInput.value);
+  const reviewStatuses = parseCommaSeparatedStatuses(reviewStatusesInput.value);
+  const initialStatuses = parseCommaSeparatedStatuses(initialStatusesInput.value);
+
+  if (!doneStatuses.length || !reviewStatuses.length || !initialStatuses.length) {
+    showRulesFeedback(
+      'Each workflow status group (Done, Review, Initial) must contain at least one status.',
+      'error',
+    );
+    return;
+  }
+
+  saveRulesBtn.disabled = true;
+  resetRulesBtn.disabled = true;
+  try {
+    const saved = (await invoke('saveRulesConfig', {
+      doneStatuses,
+      reviewStatuses,
+      initialStatuses,
+      enforceSeparationOfDuties: sodToggle.checked,
+      requireTraceability: traceabilityToggle.checked,
+    })) as AuditRuleConfig;
+    currentRules = saved;
+    renderActiveRulesBar(currentRules);
+    closeRulesDrawer();
+
+    if (currentReport) {
+      await executeAudit('Rules saved to Forge Storage. Re-running audit with updated rules...');
+    } else {
+      statusMsg.textContent = 'Audit rules saved to Atlassian Forge Storage.';
+    }
+  } catch (err) {
+    showRulesFeedback(
+      `Failed to save rules: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      'error',
+    );
+  } finally {
+    saveRulesBtn.disabled = false;
+    resetRulesBtn.disabled = false;
+  }
+});
+
+resetRulesBtn.addEventListener('click', async () => {
+  clearRulesFeedback();
+  saveRulesBtn.disabled = true;
+  resetRulesBtn.disabled = true;
+  try {
+    const defaults = (await invoke('resetRulesConfig')) as AuditRuleConfig;
+    currentRules = defaults;
+    populateRulesForm(currentRules);
+    renderActiveRulesBar(currentRules);
+    showRulesFeedback('Reset to ProofGate default audit rules.', 'success');
+    if (currentReport) {
+      await executeAudit('Default rules restored. Re-running audit...');
+    }
+  } catch (err) {
+    showRulesFeedback(
+      `Failed to reset rules: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      'error',
+    );
+  } finally {
+    saveRulesBtn.disabled = false;
+    resetRulesBtn.disabled = false;
+  }
+});
+
+void loadRulesConfig();
 
 onlyViolations.addEventListener('change', () => {
   if (currentReport) {
@@ -195,7 +425,7 @@ exportCsvBtn.addEventListener('click', async () => {
   const sha256 = await computeSha256Hex(csvBody);
   const timestamp = currentReport.generatedAt.slice(0, 10);
   downloadFile(
-    `auditpack-evidence-${timestamp}-${sha256.slice(0, 8)}.csv`,
+    `proofgate-evidence-${timestamp}-${sha256.slice(0, 8)}.csv`,
     `${csvBody}\n# SHA-256: ${sha256}\n`,
     'text/csv;charset=utf-8',
   );
@@ -233,7 +463,7 @@ exportHtmlBtn.addEventListener('click', async () => {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AuditPack Evidence Report (${escapeHtml(timestamp)})</title>
+  <title>ProofGate — SOC 2, ISO 27001 &amp; DORA Evidence Pack (${escapeHtml(timestamp)})</title>
   <style>
     body { font-family: Arial, sans-serif; color: #172b4d; padding: 24px; }
     table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
@@ -243,7 +473,7 @@ exportHtmlBtn.addEventListener('click', async () => {
   </style>
 </head>
 <body>
-  <h1>Jira Change-Management Audit Evidence Pack</h1>
+  <h1>ProofGate — Jira Change-Management Audit Evidence Pack</h1>
   <div class="meta">
     <div><strong>Generated At:</strong> ${escapeHtml(currentReport.generatedAt)}</div>
     <div><strong>Scope (JQL):</strong> <code>${escapeHtml(currentReport.jql)}</code></div>
@@ -264,7 +494,7 @@ exportHtmlBtn.addEventListener('click', async () => {
 </html>`;
 
   downloadFile(
-    `auditpack-report-${timestamp}-${sha256.slice(0, 8)}.html`,
+    `proofgate-report-${timestamp}-${sha256.slice(0, 8)}.html`,
     html,
     'text/html;charset=utf-8',
   );

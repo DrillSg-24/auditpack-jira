@@ -1,6 +1,7 @@
 import api, { route } from '@forge/api';
 import { kvs } from '@forge/kvs';
 import Resolver from '@forge/resolver';
+import { sanitizeRulesConfig } from './audit/rulesConfig';
 import { buildAuditReport } from './audit/rulesEngine';
 import {
   AuditRuleConfig,
@@ -157,26 +158,21 @@ async function fetchIssuesWithChangelog(jql: string): Promise<NormalizedJiraIssu
 const resolver = new Resolver();
 
 resolver.define('getRulesConfig', async (): Promise<AuditRuleConfig> => {
-  const saved = (await kvs.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined;
-  return saved ?? DEFAULT_AUDIT_RULES;
+  const saved = (await kvs.get(RULES_STORAGE_KEY)) as Partial<AuditRuleConfig> | undefined;
+  return sanitizeRulesConfig(saved);
 });
 
 resolver.define('saveRulesConfig', async (req): Promise<AuditRuleConfig> => {
   const payload = (req.payload ?? {}) as Partial<AuditRuleConfig>;
-  const merged: AuditRuleConfig = {
-    doneStatuses: payload.doneStatuses?.length ? payload.doneStatuses : DEFAULT_AUDIT_RULES.doneStatuses,
-    reviewStatuses: payload.reviewStatuses?.length
-      ? payload.reviewStatuses
-      : DEFAULT_AUDIT_RULES.reviewStatuses,
-    initialStatuses: payload.initialStatuses?.length
-      ? payload.initialStatuses
-      : DEFAULT_AUDIT_RULES.initialStatuses,
-    enforceSeparationOfDuties:
-      payload.enforceSeparationOfDuties ?? DEFAULT_AUDIT_RULES.enforceSeparationOfDuties,
-    requireTraceability: payload.requireTraceability ?? DEFAULT_AUDIT_RULES.requireTraceability,
-  };
-  await kvs.set(RULES_STORAGE_KEY, merged);
-  return merged;
+  const sanitized = sanitizeRulesConfig(payload);
+  await kvs.set(RULES_STORAGE_KEY, sanitized);
+  return sanitized;
+});
+
+resolver.define('resetRulesConfig', async (): Promise<AuditRuleConfig> => {
+  const defaults = sanitizeRulesConfig(DEFAULT_AUDIT_RULES);
+  await kvs.set(RULES_STORAGE_KEY, defaults);
+  return defaults;
 });
 
 resolver.define('runAudit', async (req) => {
@@ -184,8 +180,8 @@ resolver.define('runAudit', async (req) => {
   const projectKey = (req.context?.extension as { project?: { key?: string } } | undefined)?.project
     ?.key;
 
-  const rules =
-    ((await kvs.get(RULES_STORAGE_KEY)) as AuditRuleConfig | undefined) ?? DEFAULT_AUDIT_RULES;
+  const savedRules = (await kvs.get(RULES_STORAGE_KEY)) as Partial<AuditRuleConfig> | undefined;
+  const rules = sanitizeRulesConfig(savedRules);
 
   const defaultJql = projectKey
     ? `project = "${projectKey}" AND statusCategory = Done ORDER BY updated DESC`

@@ -41,7 +41,7 @@ function makeBaseIssue(overrides: Partial<NormalizedJiraIssue> = {}): Normalized
   };
 }
 
-describe('AuditPack rules engine', () => {
+describe('ProofGate rules engine', () => {
   it('marks a properly reviewed and independently approved ticket as compliant', () => {
     const result = evaluateIssue(makeBaseIssue(), DEFAULT_AUDIT_RULES);
     expect(result.compliant).toBe(true);
