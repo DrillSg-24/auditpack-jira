@@ -1,7 +1,7 @@
-# AGENTS.md — AuditPack for Jira (Atlassian Forge)
+# AGENTS.md — ProofGate for Jira (`auditpack-jira`, Atlassian Forge)
 
 ## Project Mission
-Build and launch **AuditPack for Jira**, a read-only, zero-egress **"Runs on Atlassian"** Forge app that audits Jira change-management history (Separation of Duties, mandatory review/QA sign-offs, workflow bypasses, change traceability) and generates auditor-ready evidence packs mapped to **SOC 2 CC8.1**, **ISO 27001 A.8.32**, and **EU DORA**.
+Build and launch **ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira**, a read-only, zero-egress **"Runs on Atlassian"** Forge app that audits Jira change-management history (Separation of Duties, mandatory review/QA sign-offs, workflow bypasses, change traceability), supports verifiable random sampling & signed exception justifications, and generates auditor-ready evidence packs mapped to **SOC 2 CC8.1**, **ISO 27001 A.8.32**, and **EU DORA Art. 9**.
 
 ## Non-Negotiable Architecture & Compliance Constraints
 1. **"Runs on Atlassian" Zero-Egress Rule:**

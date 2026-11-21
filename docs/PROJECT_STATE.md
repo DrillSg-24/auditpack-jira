@@ -1,28 +1,22 @@
-# Project State & Session Handoff — `auditpack-jira`
+# Project State & Session Handoff — ProofGate for Jira (`auditpack-jira`)
 
-> **Last Updated:** 2026-11-21
-> **Current Phase:** Phase 1 — MVP Deployed & Installed on Dev Jira (`drillsgdev.atlassian.net`)
+> **Last Updated:** 2026-11-22
+> **Official Public Brand:** `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`
+> **Current Phase:** Phase 2 — Week 2 UI Polish & Conversion Features (Developing in WSL)
 
 ---
 
 ## 1. Strategic Decisions Locked In
-- **Product:** Jira Change-Management & Audit Evidence Packager (`SOC 2 CC8.1`, `ISO 27001 A.8.32`, `EU DORA`).
-- **Platform:** Pure **"Runs on Atlassian" Forge** app (zero servers, zero data egress, Atlassian handles global billing/VAT/trials, **0% Atlassian commission up to $1M**).
-- **Distribution Model:** 100% self-serve (zero sales calls, zero cold outreach). Organic Atlassian Marketplace search + helpful answers in Atlassian Community threads + 1–2 technical guides.
-- **Target Goal (Year 1):** €3,000–€5,000 total / ramping to €1,000/month (~7 mid-sized Jira teams at avg ~100 seats).
-- **Planned Pricing:**
-  - Free up to 10 users (drives early installs & reviews).
-  - 11–100 users: `$1.50 / user / month`
-  - 101–250 users: `$1.10 / user / month`
-  - 251+ users: `$0.75 / user / month`
+*(Full business, pricing, ASO, and launch context lives in `docs/PRODUCT_BRIEF.md`.)*
+- **Product:** **ProofGate** — Jira Change-Management & Audit Evidence Packager (`SOC 2 CC8.1`, `ISO 27001 A.8.32`, `EU DORA Art. 9`).
+- **Platform:** Pure **"Runs on Atlassian" Forge** app (`nodejs24.x`, `@forge/kvs`, Vite+TS Custom UI, 0% Atlassian commission up to $1M).
+- **Pricing:** Free `1–10` users · `$1.25/u` (`11–100`) · `$0.85/u` (`101–250`) · `$0.45/u` (`251–1,000`) · `$0.20/u` (`1,001+`) + ~17% annual discount.
+- **Target Goal (Year 1):** €3,000–€5,000 total / ramping to €1,000/month (~7 mid-sized Jira teams or 2 annual 250-seat teams).
 - **Tech Stack:**
   - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
   - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
   - Tests: Vitest (`tests/`).
-- **Germany / Legal Reminders (before enabling paid Marketplace billing):**
-  - Check employer contract for non-competing *Nebentätigkeit* notice requirement; keep work hardware/accounts 100% separate.
-  - Register *Nebengewerbe* + Finanzamt tax questionnaire before taking recurring payouts.
-  - Publish simple GitHub Pages docs site with `Impressum` (§ 5 DDG), Privacy Policy (noting zero data egress / Runs on Atlassian), Terms, and Support email before Marketplace submission.
+  - Main Dev Environment: **WSL Ubuntu (Node 24 LTS)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`).
 
 ---
 
@@ -44,15 +38,20 @@
 - [ ] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues.
 - [ ] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts).
 
-### Week 3 — Dashboard Polish & Auditor-Ready Exports
-- [ ] Polish Vite + TS Custom UI: project/version/date-range/JQL filters, rule configuration modal, compliance KPI cards, exception table with severity filter.
-- [ ] Polish printable HTML/PDF Evidence Pack layout (SOC 2 CC8.1 / ISO 27001 A.8.32 / EU DORA control mapping table + full transition timeline + SHA-256 verification block).
+### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports
+- [ ] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`).
+- [ ] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open.
+- [ ] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports.
+- [ ] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs.
+- [ ] **Saved Monthly/Quarterly Audit Snapshots + Trendline (`@forge/kvs`):** Persist summary snapshots + SHA-256 hashes and display compliance progression over time.
+- [ ] **Boardroom-Grade Print-to-PDF CSS:** `@media print` Executive Cover, Control Matrix, Sign-Off block, and clean page breaks.
+- [ ] **Ethical "Peak Delight" Review Nudge:** Dismissible 1-line Marketplace review prompt shown only after a user's 2nd successful export.
 
-### Week 4 — Marketplace Submission
-- [ ] Run `forge lint` + verify "Runs on Atlassian" eligibility + Ecoscanner hygiene (no PII logs, no external egress).
-- [ ] Publish GitHub Pages legal/docs site (Privacy, Terms, Support, Impressum).
-- [ ] Create 3 crisp Marketplace screenshots + 60-second silent screen-recording demo.
-- [ ] Finalize brand name & submit to Atlassian Marketplace.
+### Week 4 — Marketplace Submission & €0 Launch
+- [ ] Run `forge lint` (0 errors, 0 warnings) + verify **"Runs on Atlassian"** eligibility + Ecoscanner hygiene.
+- [ ] Publish free GitHub Pages docs/legal site (Privacy Policy, Terms, Support portal link, German `Impressum`, + 3 SEO guides).
+- [ ] Capture 3 Marketplace screenshots + 60-second silent demo video using finalized copy from `docs/PRODUCT_BRIEF.md`.
+- [ ] Submit **`ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`** to Atlassian Marketplace with progressive pricing tiers (`1–10` free).
 
 ---
 
