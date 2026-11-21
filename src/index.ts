@@ -1,6 +1,7 @@
 import api, { route } from '@forge/api';
 import { kvs } from '@forge/kvs';
 import Resolver from '@forge/resolver';
+import { ALL_PROJECTS_VALUE, buildAuditJql, DateRangePreset } from './audit/jqlBuilder';
 import { sanitizeRulesConfig } from './audit/rulesConfig';
 import { buildAuditReport } from './audit/rulesEngine';
 import {
@@ -175,19 +176,103 @@ resolver.define('resetRulesConfig', async (): Promise<AuditRuleConfig> => {
   return defaults;
 });
 
+interface JiraProjectSearchResponse {
+  values?: Array<{
+    key?: string;
+    name?: string;
+  }>;
+}
+
+interface RawJiraVersion {
+  id?: string;
+  name?: string;
+  released?: boolean;
+  archived?: boolean;
+  releaseDate?: string;
+}
+
+resolver.define('getProjects', async (req) => {
+  const currentProjectKey =
+    (req.context?.extension as { project?: { key?: string } } | undefined)?.project?.key ?? null;
+
+  const response = await api
+    .asUser()
+    .requestJira(route`/rest/api/3/project/search?maxResults=100&orderBy=name`, {
+      headers: { Accept: 'application/json' },
+    });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Jira projects (HTTP ${response.status})`);
+  }
+
+  const data = (await response.json()) as JiraProjectSearchResponse;
+  const projects = (data.values ?? [])
+    .filter((p): p is { key: string; name: string } => Boolean(p.key && p.name))
+    .map((p) => ({ key: p.key, name: p.name }));
+
+  return { projects, currentProjectKey };
+});
+
+resolver.define('getProjectVersions', async (req) => {
+  const payload = (req.payload ?? {}) as { projectKey?: string };
+  const projectKey = payload.projectKey?.trim();
+  if (!projectKey || projectKey === ALL_PROJECTS_VALUE) {
+    return { versions: [] };
+  }
+
+  const response = await api
+    .asUser()
+    .requestJira(route`/rest/api/3/project/${projectKey}/versions`, {
+      headers: { Accept: 'application/json' },
+    });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch project versions (HTTP ${response.status})`);
+  }
+
+  const rawVersions = (await response.json()) as RawJiraVersion[];
+  const versions = rawVersions
+    .filter((v) => Boolean(v.name) && !v.archived)
+    .map((v) => ({
+      id: v.id ?? v.name ?? '',
+      name: v.name ?? '',
+      released: Boolean(v.released),
+      releaseDate: v.releaseDate ?? null,
+    }))
+    .sort((a, b) => {
+      if (a.releaseDate && b.releaseDate) {
+        return b.releaseDate.localeCompare(a.releaseDate);
+      }
+      if (a.releaseDate) return -1;
+      if (b.releaseDate) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+  return { versions };
+});
+
 resolver.define('runAudit', async (req) => {
-  const payload = (req.payload ?? {}) as { jql?: string };
-  const projectKey = (req.context?.extension as { project?: { key?: string } } | undefined)?.project
-    ?.key;
+  const payload = (req.payload ?? {}) as {
+    projectKey?: string;
+    fixVersion?: string;
+    dateRange?: DateRangePreset;
+    jql?: string;
+  };
+  const contextProjectKey = (req.context?.extension as { project?: { key?: string } } | undefined)
+    ?.project?.key;
 
   const savedRules = (await kvs.get(RULES_STORAGE_KEY)) as Partial<AuditRuleConfig> | undefined;
   const rules = sanitizeRulesConfig(savedRules);
 
-  const defaultJql = projectKey
-    ? `project = "${projectKey}" AND statusCategory = Done ORDER BY updated DESC`
-    : 'statusCategory = Done ORDER BY updated DESC';
-
-  const jql = payload.jql?.trim() || defaultJql;
+  const jql = buildAuditJql(
+    {
+      projectKey: payload.projectKey,
+      fixVersion: payload.fixVersion,
+      dateRange: payload.dateRange,
+      customJql: payload.jql,
+    },
+    contextProjectKey,
+  );
   const issues = await fetchIssuesWithChangelog(jql);
 
   // Never log PII or issue text; only safe aggregate telemetry if needed.

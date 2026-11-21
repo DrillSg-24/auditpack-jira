@@ -19,6 +19,7 @@ interface AuditedIssueRecord {
   approvedAt: string | null;
   completedByName: string | null;
   completedAt: string | null;
+  fixVersions?: string[];
   compliant: boolean;
   violations: AuditViolation[];
 }
@@ -29,6 +30,44 @@ interface ControlSummary {
   passed: number;
   failed: number;
 }
+
+type DateRangePreset = '30d' | '90d' | '365d' | 'all';
+
+interface JiraProjectOption {
+  key: string;
+  name: string;
+}
+
+interface JiraVersionOption {
+  id: string;
+  name: string;
+  released: boolean;
+  releaseDate: string | null;
+}
+
+const ALL_PROJECTS_VALUE = '__ALL__';
+
+const FRAMEWORK_META: Record<string, { shortCode: string; title: string }> = {
+  SOC2_CC8_1: {
+    shortCode: 'SOC 2 CC8.1',
+    title: 'Change Authorization & Testing',
+  },
+  ISO27001_A8_32: {
+    shortCode: 'ISO 27001 A.8.32',
+    title: 'Change Management Controls',
+  },
+  DORA_ART_9: {
+    shortCode: 'EU DORA Art. 9',
+    title: 'ICT Change Control & Resilience',
+  },
+};
+
+const VIOLATION_LABELS: Record<string, string> = {
+  SOD_SELF_APPROVED: 'SoD Violation',
+  MISSING_REVIEW_STAGE: 'No Review / QA',
+  WORKFLOW_BYPASS: 'Workflow Bypass',
+  MISSING_TRACEABILITY: 'No Traceability',
+};
 
 interface AuditRuleConfig {
   doneStatuses: string[];
@@ -60,8 +99,13 @@ interface AuditReport {
 
 let currentReport: AuditReport | null = null;
 let currentRules: AuditRuleConfig = { ...DEFAULT_RULES };
+let activeFrameworkFilter: string | null = null;
 
+const projectSelect = document.getElementById('project-select') as HTMLSelectElement;
+const versionSelect = document.getElementById('version-select') as HTMLSelectElement;
+const dateRangeSelect = document.getElementById('date-range-select') as HTMLSelectElement;
 const jqlInput = document.getElementById('jql-input') as HTMLInputElement;
+const clearJqlBtn = document.getElementById('clear-jql-btn') as HTMLButtonElement;
 const runBtn = document.getElementById('run-audit-btn') as HTMLButtonElement;
 const configureRulesBtn = document.getElementById('configure-rules-btn') as HTMLButtonElement;
 const exportCsvBtn = document.getElementById('export-csv-btn') as HTMLButtonElement;
@@ -69,9 +113,12 @@ const exportHtmlBtn = document.getElementById('export-html-btn') as HTMLButtonEl
 const statusMsg = document.getElementById('status-msg') as HTMLParagraphElement;
 const activeRulesBar = document.getElementById('active-rules-bar') as HTMLDivElement;
 const summaryGrid = document.getElementById('summary-grid') as HTMLElement;
+const controlsGrid = document.getElementById('controls-grid') as HTMLElement;
 const resultsCard = document.getElementById('results-card') as HTMLElement;
 const resultsBody = document.getElementById('results-body') as HTMLTableSectionElement;
 const onlyViolations = document.getElementById('only-violations') as HTMLInputElement;
+const severityFilter = document.getElementById('severity-filter') as HTMLSelectElement;
+const activeFrameworkChip = document.getElementById('active-framework-chip') as HTMLSpanElement;
 
 // Rules drawer elements
 const rulesBackdrop = document.getElementById('rules-drawer-backdrop') as HTMLDivElement;
@@ -122,6 +169,104 @@ function downloadFile(filename: string, content: string, mimeType: string): void
   URL.revokeObjectURL(url);
 }
 
+function renderFindingsCell(record: AuditedIssueRecord): string {
+  if (record.compliant || record.violations.length === 0) {
+    return '<span class="finding-pill pass">All controls passed</span>';
+  }
+
+  const items = record.violations
+    .map((v) => {
+      const severityClass = v.severity.toUpperCase() === 'HIGH' ? 'high' : 'medium';
+      const label = VIOLATION_LABELS[v.code] ?? v.code;
+      return `
+        <div class="finding-item">
+          <span class="finding-pill ${severityClass}" title="${escapeHtml(v.message)}">
+            <span class="finding-severity">${escapeHtml(v.severity)}</span>
+            <span>${escapeHtml(label)}</span>
+          </span>
+          <span class="finding-detail">${escapeHtml(v.message)}</span>
+        </div>
+      `;
+    })
+    .join('');
+
+  return `<div class="findings-list">${items}</div>`;
+}
+
+function renderControlSummaries(report: AuditReport): void {
+  controlsGrid.classList.remove('hidden');
+  controlsGrid.innerHTML = report.controlSummaries
+    .map((summary) => {
+      const meta = FRAMEWORK_META[summary.framework] ?? {
+        shortCode: summary.framework,
+        title: summary.label,
+      };
+      const total = summary.passed + summary.failed;
+      const rate = total === 0 ? 100 : Math.round((summary.passed / total) * 1000) / 10;
+      const passing = summary.failed === 0;
+      const statusClass = passing ? 'passing' : 'failing';
+      const statusText = passing
+        ? 'PASSING'
+        : `${summary.failed} EXCEPTION${summary.failed === 1 ? '' : 'S'}`;
+      const activeClass = activeFrameworkFilter === summary.framework ? 'active' : '';
+
+      return `
+        <button
+          type="button"
+          class="control-card ${activeClass}"
+          data-framework="${escapeHtml(summary.framework)}"
+          title="Click to filter table to ${escapeHtml(meta.shortCode)} exceptions"
+        >
+          <div class="control-card-head">
+            <span class="control-framework-code">${escapeHtml(meta.shortCode)}</span>
+            <span class="control-status-pill ${statusClass}">${escapeHtml(statusText)}</span>
+          </div>
+          <div class="control-title">${escapeHtml(meta.title)}</div>
+          <div class="control-bar-track">
+            <div class="control-bar-fill ${statusClass}" style="width: ${rate}%"></div>
+          </div>
+          <div class="control-metrics">
+            <span>Passed: <strong>${summary.passed}</strong></span>
+            <span>Exceptions: <strong>${summary.failed}</strong></span>
+            <span>Rate: <strong>${rate}%</strong></span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+
+  controlsGrid.querySelectorAll<HTMLButtonElement>('.control-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const framework = card.dataset.framework ?? null;
+      activeFrameworkFilter = activeFrameworkFilter === framework ? null : framework;
+      if (currentReport) {
+        renderReport(currentReport);
+      }
+    });
+  });
+}
+
+function renderActiveFrameworkChip(): void {
+  if (!activeFrameworkFilter) {
+    activeFrameworkChip.classList.add('hidden');
+    activeFrameworkChip.innerHTML = '';
+    return;
+  }
+
+  const label = FRAMEWORK_META[activeFrameworkFilter]?.shortCode ?? activeFrameworkFilter;
+  activeFrameworkChip.classList.remove('hidden');
+  activeFrameworkChip.innerHTML = `
+    <span>Filtered: ${escapeHtml(label)} exceptions</span>
+    <button type="button" id="clear-framework-filter-btn" aria-label="Clear framework filter">&times;</button>
+  `;
+  document.getElementById('clear-framework-filter-btn')?.addEventListener('click', () => {
+    activeFrameworkFilter = null;
+    if (currentReport) {
+      renderReport(currentReport);
+    }
+  });
+}
+
 function renderReport(report: AuditReport): void {
   summaryGrid.classList.remove('hidden');
   resultsCard.classList.remove('hidden');
@@ -147,28 +292,64 @@ function renderReport(report: AuditReport): void {
     </div>
   `;
 
-  const visibleRecords = onlyViolations.checked
-    ? report.records.filter((r) => !r.compliant)
-    : report.records;
+  renderControlSummaries(report);
+  renderActiveFrameworkChip();
+
+  const selectedSeverity = severityFilter.value;
+  const visibleRecords = report.records.filter((record) => {
+    if (onlyViolations.checked && record.compliant) {
+      return false;
+    }
+    if (selectedSeverity !== 'ALL') {
+      const hasMatchingSeverity = record.violations.some(
+        (v) => v.severity.toUpperCase() === selectedSeverity,
+      );
+      if (!hasMatchingSeverity) return false;
+    }
+    if (activeFrameworkFilter) {
+      const failsFramework = record.violations.some((v) =>
+        v.controls.includes(activeFrameworkFilter as string),
+      );
+      if (!failsFramework) return false;
+    }
+    return true;
+  });
+
+  if (visibleRecords.length === 0) {
+    resultsBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="empty-state">
+          No audited changes match the current filter criteria.
+        </td>
+      </tr>
+    `;
+    return;
+  }
 
   resultsBody.innerHTML = visibleRecords
     .map((record) => {
       const badge = record.compliant
         ? '<span class="badge pass">PASS</span>'
         : '<span class="badge fail">EXCEPTION</span>';
-      const findings = record.compliant
-        ? 'All checks passed'
-        : record.violations.map((v) => `${v.code}: ${v.message}`).join('; ');
+      const versionTags =
+        record.fixVersions && record.fixVersions.length > 0
+          ? `<div class="summary-meta">${record.fixVersions
+              .map((v) => `<span class="version-tag">${escapeHtml(v)}</span>`)
+              .join('')}</div>`
+          : '';
 
       return `
         <tr>
           <td><strong>${escapeHtml(record.key)}</strong></td>
-          <td>${escapeHtml(record.summary)}</td>
+          <td>
+            <div>${escapeHtml(record.summary)}</div>
+            ${versionTags}
+          </td>
           <td>${escapeHtml(record.assigneeName)}</td>
           <td>${escapeHtml(record.approverName ?? '—')}</td>
           <td>${escapeHtml(record.completedAt ? record.completedAt.slice(0, 10) : '—')}</td>
           <td>${badge}</td>
-          <td>${escapeHtml(findings)}</td>
+          <td>${renderFindingsCell(record)}</td>
         </tr>
       `;
     })
@@ -262,12 +443,72 @@ async function loadRulesConfig(): Promise<void> {
   renderActiveRulesBar(currentRules);
 }
 
+async function loadProjectVersions(projectKey: string): Promise<void> {
+  versionSelect.innerHTML = '<option value="">All versions</option>';
+  if (!projectKey || projectKey === ALL_PROJECTS_VALUE) {
+    versionSelect.disabled = true;
+    return;
+  }
+
+  versionSelect.disabled = true;
+  try {
+    const res = (await invoke('getProjectVersions', { projectKey })) as {
+      versions?: JiraVersionOption[];
+    };
+    const versions = res?.versions ?? [];
+    for (const version of versions) {
+      const option = document.createElement('option');
+      option.value = version.name;
+      const suffix = version.released
+        ? version.releaseDate
+          ? ` (Released ${version.releaseDate})`
+          : ' (Released)'
+        : ' (Unreleased)';
+      option.textContent = `${version.name}${suffix}`;
+      versionSelect.appendChild(option);
+    }
+    versionSelect.disabled = versions.length === 0;
+  } catch {
+    versionSelect.disabled = true;
+  }
+}
+
+async function loadProjects(): Promise<void> {
+  try {
+    const res = (await invoke('getProjects')) as {
+      projects?: JiraProjectOption[];
+      currentProjectKey?: string | null;
+    };
+    const projects = res?.projects ?? [];
+    projectSelect.innerHTML = `<option value="${ALL_PROJECTS_VALUE}">All accessible projects</option>`;
+    for (const project of projects) {
+      const option = document.createElement('option');
+      option.value = project.key;
+      option.textContent = `${project.name} (${project.key})`;
+      projectSelect.appendChild(option);
+    }
+
+    if (res?.currentProjectKey) {
+      projectSelect.value = res.currentProjectKey;
+      await loadProjectVersions(res.currentProjectKey);
+    }
+  } catch {
+    // Keep default "All accessible projects" option if unavailable outside Forge.
+  }
+}
+
 async function executeAudit(customStatus?: string): Promise<void> {
   runBtn.disabled = true;
   statusMsg.textContent = customStatus ?? 'Running change-management audit inside Atlassian Cloud...';
   try {
-    const report = (await invoke('runAudit', { jql: jqlInput.value })) as AuditReport;
+    const report = (await invoke('runAudit', {
+      projectKey: projectSelect.value,
+      fixVersion: versionSelect.value || undefined,
+      dateRange: dateRangeSelect.value as DateRangePreset,
+      jql: jqlInput.value,
+    })) as AuditReport;
     currentReport = report;
+    activeFrameworkFilter = null;
     if (report.rules) {
       currentRules = report.rules;
       renderActiveRulesBar(currentRules);
@@ -280,6 +521,20 @@ async function executeAudit(customStatus?: string): Promise<void> {
     runBtn.disabled = false;
   }
 }
+
+projectSelect.addEventListener('change', () => {
+  void loadProjectVersions(projectSelect.value);
+});
+
+clearJqlBtn.addEventListener('click', () => {
+  jqlInput.value = '';
+});
+
+severityFilter.addEventListener('change', () => {
+  if (currentReport) {
+    renderReport(currentReport);
+  }
+});
 
 runBtn.addEventListener('click', () => {
   void executeAudit();
@@ -382,6 +637,7 @@ resetRulesBtn.addEventListener('click', async () => {
 });
 
 void loadRulesConfig();
+void loadProjects();
 
 onlyViolations.addEventListener('change', () => {
   if (currentReport) {

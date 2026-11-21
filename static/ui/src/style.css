@@ -69,7 +69,74 @@ h2 {
 .controls label {
   display: block;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(160px, 1.1fr) minmax(140px, 0.9fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.filter-field select,
+.table-filters select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.filter-field select:disabled {
+  background: #f1f2f4;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.filter-action .btn {
+  height: 36px;
+  white-space: nowrap;
+}
+
+.advanced-jql {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.advanced-jql summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+}
+
+.advanced-jql summary:hover {
+  color: var(--text);
+}
+
+.advanced-jql-body {
+  margin-top: 8px;
+}
+
+.jql-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .input-row {
@@ -482,4 +549,228 @@ th {
 .drawer-footer-right {
   display: flex;
   gap: 8px;
+}
+
+/* Compliance Framework Control Summary Cards (PG-6) */
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.control-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  font-family: inherit;
+  color: inherit;
+}
+
+.control-card:hover {
+  border-color: #8590a2;
+  box-shadow: 0 2px 6px rgba(9, 30, 66, 0.08);
+}
+
+.control-card.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(12, 102, 228, 0.2);
+}
+
+.control-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.control-framework-code {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  background: #e9f2ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.control-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.control-status-pill.passing {
+  background: var(--pass-bg);
+  color: var(--pass-text);
+}
+
+.control-status-pill.failing {
+  background: var(--fail-bg);
+  color: var(--fail-text);
+}
+
+.control-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.control-bar-track {
+  height: 6px;
+  width: 100%;
+  background: #ebecf0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.control-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.control-bar-fill.passing {
+  background: #1f845a;
+}
+
+.control-bar-fill.failing {
+  background: #c9372c;
+}
+
+.control-metrics {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Table filters & Findings pills (PG-6) */
+.table-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.table-filters select {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.active-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #e9f2ff;
+  color: #0055cc;
+}
+
+.active-filter-chip button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 2px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.summary-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.version-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f2f4;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.finding-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.finding-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.finding-pill.high {
+  background: var(--fail-bg);
+  color: var(--fail-text);
+  border: 1px solid #ffd5d2;
+}
+
+.finding-pill.medium {
+  background: #fff7d6;
+  color: #7f5f01;
+  border: 1px solid #f5cd47;
+}
+
+.finding-pill.pass {
+  background: var(--pass-bg);
+  color: var(--pass-text);
+}
+
+.finding-severity {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  opacity: 0.85;
+}
+
+.finding-detail {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px 12px;
 }

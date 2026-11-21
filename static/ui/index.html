@@ -22,28 +22,82 @@
       </header>
 
       <section class="card controls">
-        <label for="jql-input">Scope (JQL — leave blank for current project Done issues)</label>
-        <div class="input-row">
-          <input
-            id="jql-input"
-            type="text"
-            placeholder='e.g. project = "PAY" AND statusCategory = Done AND updated >= -90d'
-          />
-          <button id="run-audit-btn" class="btn primary" type="button">Run Audit</button>
+        <div class="filter-grid">
+          <div class="filter-field">
+            <label for="project-select">Project</label>
+            <select id="project-select">
+              <option value="__ALL__">All accessible projects</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="version-select">FixVersion / Release</label>
+            <select id="version-select" disabled>
+              <option value="">All versions</option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="date-range-select">Date Range</label>
+            <select id="date-range-select">
+              <option value="30d">Last 30 days</option>
+              <option value="90d" selected>Last 90 days</option>
+              <option value="365d">Last 365 days</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+
+          <div class="filter-action">
+            <button id="run-audit-btn" class="btn primary" type="button">Run Audit</button>
+          </div>
         </div>
+
+        <details id="advanced-jql-details" class="advanced-jql">
+          <summary>Advanced JQL (optional override)</summary>
+          <div class="advanced-jql-body">
+            <div class="input-row">
+              <input
+                id="jql-input"
+                type="text"
+                placeholder='Optional custom JQL — e.g. project = "PAY" AND statusCategory = Done AND updated >= -90d'
+              />
+              <button id="clear-jql-btn" class="btn secondary" type="button">Clear</button>
+            </div>
+            <p class="jql-hint">
+              When non-empty, custom JQL overrides the Project, FixVersion, and Date Range pickers above.
+            </p>
+          </div>
+        </details>
+
         <div id="active-rules-bar" class="rules-bar"></div>
         <p id="status-msg" class="status-msg"></p>
       </section>
 
       <section id="summary-grid" class="summary-grid hidden"></section>
 
+      <section
+        id="controls-grid"
+        class="controls-grid hidden"
+        aria-label="Compliance framework control summary"
+      ></section>
+
       <section id="results-card" class="card hidden">
         <div class="table-header">
-          <h2>Audited Changes</h2>
-          <label class="checkbox-label">
-            <input id="only-violations" type="checkbox" />
-            Show exceptions only
-          </label>
+          <div class="table-title-group">
+            <h2>Audited Changes</h2>
+            <span id="active-framework-chip" class="active-filter-chip hidden"></span>
+          </div>
+          <div class="table-filters">
+            <select id="severity-filter" aria-label="Filter by severity">
+              <option value="ALL">All severities</option>
+              <option value="HIGH">High severity only</option>
+              <option value="MEDIUM">Medium severity only</option>
+            </select>
+            <label class="checkbox-label">
+              <input id="only-violations" type="checkbox" />
+              Show exceptions only
+            </label>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
