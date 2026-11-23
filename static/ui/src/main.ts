@@ -1,4 +1,9 @@
 import { invoke } from '@forge/bridge';
+import {
+  AuditSampleMetadata,
+  generateVerifiableSeed,
+  selectRandomSample,
+} from '../../../src/audit/sampler';
 import './style.css';
 
 interface AuditViolation {
@@ -113,11 +118,28 @@ interface AuditSnapshotRecord {
   sha256: string;
 }
 
+interface DiscoveredStatusesResponse {
+  projectKey: string;
+  allStatuses: string[];
+  doneStatuses: string[];
+  reviewStatuses: string[];
+  initialStatuses: string[];
+  suggestedRules: AuditRuleConfig;
+  hasSavedRules: boolean;
+  autoApplied: boolean;
+}
+
 let currentReport: AuditReport | null = null;
 let currentRules: AuditRuleConfig = { ...DEFAULT_RULES };
 let currentSnapshots: AuditSnapshotRecord[] = [];
 let activeFrameworkFilter: string | null = null;
+let sampleEnabled = false;
+let sampleSeed = generateVerifiableSeed('PG');
 
+const discoveryBanner = document.getElementById('discovery-banner') as HTMLDivElement;
+const discoveryBannerText = document.getElementById('discovery-banner-text') as HTMLSpanElement;
+const discoveryReviewBtn = document.getElementById('discovery-review-btn') as HTMLButtonElement;
+const discoveryDismissBtn = document.getElementById('discovery-dismiss-btn') as HTMLButtonElement;
 const projectSelect = document.getElementById('project-select') as HTMLSelectElement;
 const versionSelect = document.getElementById('version-select') as HTMLSelectElement;
 const dateRangeSelect = document.getElementById('date-range-select') as HTMLSelectElement;
@@ -141,12 +163,20 @@ const onlyViolations = document.getElementById('only-violations') as HTMLInputEl
 const severityFilter = document.getElementById('severity-filter') as HTMLSelectElement;
 const activeFrameworkChip = document.getElementById('active-framework-chip') as HTMLSpanElement;
 
+// Auditor Random Sample controls (PG-11)
+const toggleSampleBtn = document.getElementById('toggle-sample-btn') as HTMLButtonElement;
+const sampleSizeInput = document.getElementById('sample-size-input') as HTMLInputElement;
+const sampleSeedInput = document.getElementById('sample-seed-input') as HTMLInputElement;
+const regenerateSeedBtn = document.getElementById('regenerate-seed-btn') as HTMLButtonElement;
+const sampleStatusBanner = document.getElementById('sample-status-banner') as HTMLDivElement;
+
 // Rules drawer elements
 const rulesBackdrop = document.getElementById('rules-drawer-backdrop') as HTMLDivElement;
 const closeRulesBtn = document.getElementById('close-rules-btn') as HTMLButtonElement;
 const cancelRulesBtn = document.getElementById('cancel-rules-btn') as HTMLButtonElement;
 const resetRulesBtn = document.getElementById('reset-rules-btn') as HTMLButtonElement;
 const saveRulesBtn = document.getElementById('save-rules-btn') as HTMLButtonElement;
+const discoverStatusesBtn = document.getElementById('discover-statuses-btn') as HTMLButtonElement;
 const rulesForm = document.getElementById('rules-form') as HTMLFormElement;
 const doneStatusesInput = document.getElementById('rule-done-statuses') as HTMLInputElement;
 const reviewStatusesInput = document.getElementById('rule-review-statuses') as HTMLInputElement;
@@ -288,6 +318,45 @@ function renderActiveFrameworkChip(): void {
   });
 }
 
+function getRequestedSampleSize(): number {
+  const parsed = Number.parseInt(sampleSizeInput.value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 25;
+  return Math.min(500, parsed);
+}
+
+function getEffectiveSampleSelection(report: AuditReport): {
+  records: AuditedIssueRecord[];
+  sampleMetadata: AuditSampleMetadata | null;
+} {
+  if (!sampleEnabled) {
+    return { records: report.records, sampleMetadata: null };
+  }
+  const seed = sampleSeedInput.value.trim() || sampleSeed;
+  const result = selectRandomSample(report.records, getRequestedSampleSize(), seed);
+  return { records: result.items, sampleMetadata: result.metadata };
+}
+
+function renderSampleControls(sampleMetadata: AuditSampleMetadata | null): void {
+  const requestedN = getRequestedSampleSize();
+  if (sampleEnabled && sampleMetadata) {
+    toggleSampleBtn.classList.add('active');
+    toggleSampleBtn.textContent = `Exit Random Sample (${sampleMetadata.sampleSize}/${sampleMetadata.populationSize})`;
+    sampleStatusBanner.classList.remove('hidden');
+    sampleStatusBanner.innerHTML = `
+      <strong>Verifiable Auditor Sample Active:</strong>
+      <span>Population: <strong>${sampleMetadata.populationSize}</strong></span>
+      <span>Sample: <strong>${sampleMetadata.sampleSize}</strong></span>
+      <span>Seed: <code>${escapeHtml(sampleMetadata.seed)}</code></span>
+      <span>Algorithm: <code>${escapeHtml(sampleMetadata.algorithm)}</code></span>
+    `;
+  } else {
+    toggleSampleBtn.classList.remove('active');
+    toggleSampleBtn.textContent = `1-Click Random Sample (N=${requestedN})`;
+    sampleStatusBanner.classList.add('hidden');
+    sampleStatusBanner.innerHTML = '';
+  }
+}
+
 function renderReport(report: AuditReport): void {
   summaryGrid.classList.remove('hidden');
   resultsCard.classList.remove('hidden');
@@ -317,8 +386,11 @@ function renderReport(report: AuditReport): void {
   renderControlSummaries(report);
   renderActiveFrameworkChip();
 
+  const { records: baseRecords, sampleMetadata } = getEffectiveSampleSelection(report);
+  renderSampleControls(sampleMetadata);
+
   const selectedSeverity = severityFilter.value;
-  const visibleRecords = report.records.filter((record) => {
+  const visibleRecords = baseRecords.filter((record) => {
     if (onlyViolations.checked && record.compliant) {
       return false;
     }
@@ -495,7 +567,7 @@ async function loadProjectVersions(projectKey: string): Promise<void> {
   }
 }
 
-async function loadProjects(): Promise<void> {
+async function loadProjects(): Promise<string | null> {
   try {
     const res = (await invoke('getProjects')) as {
       projects?: JiraProjectOption[];
@@ -510,12 +582,37 @@ async function loadProjects(): Promise<void> {
       projectSelect.appendChild(option);
     }
 
-    if (res?.currentProjectKey) {
-      projectSelect.value = res.currentProjectKey;
-      await loadProjectVersions(res.currentProjectKey);
+    const initialProjectKey = res?.currentProjectKey ?? projects[0]?.key ?? null;
+    if (initialProjectKey) {
+      projectSelect.value = initialProjectKey;
+      await loadProjectVersions(initialProjectKey);
     }
+    return initialProjectKey;
   } catch {
     // Keep default "All accessible projects" option if unavailable outside Forge.
+    return null;
+  }
+}
+
+async function runFirstOpenAutoDiscovery(projectKey: string): Promise<void> {
+  try {
+    const discovered = (await invoke('discoverProjectStatuses', {
+      projectKey,
+      persistIfUnconfigured: true,
+    })) as DiscoveredStatusesResponse;
+
+    if (discovered.autoApplied) {
+      currentRules = discovered.suggestedRules;
+      renderActiveRulesBar(currentRules);
+      const reviewNote =
+        discovered.reviewStatuses.length > 0
+          ? `${discovered.reviewStatuses.length} Review/QA`
+          : 'default Review/QA';
+      discoveryBannerText.textContent = `Zero-Setup Auto-Discovery: detected ${discovered.doneStatuses.length} Done and ${reviewNote} status(es) in project ${discovered.projectKey}. Running 90-day preview.`;
+      discoveryBanner.classList.remove('hidden');
+    }
+  } catch {
+    // Non-blocking: fall back silently to existing/default rules.
   }
 }
 
@@ -769,9 +866,98 @@ resetRulesBtn.addEventListener('click', async () => {
   }
 });
 
-void loadRulesConfig();
-void loadProjects();
-void loadSnapshots();
+discoverStatusesBtn.addEventListener('click', async () => {
+  clearRulesFeedback();
+  const selectedProject = projectSelect.value;
+  if (!selectedProject || selectedProject === ALL_PROJECTS_VALUE) {
+    showRulesFeedback(
+      'Select a specific Jira project in the filter bar first to auto-discover statuses.',
+      'error',
+    );
+    return;
+  }
+
+  discoverStatusesBtn.disabled = true;
+  try {
+    const discovered = (await invoke('discoverProjectStatuses', {
+      projectKey: selectedProject,
+      persistIfUnconfigured: false,
+    })) as DiscoveredStatusesResponse;
+    populateRulesForm(discovered.suggestedRules);
+    showRulesFeedback(
+      `Discovered ${discovered.doneStatuses.length} Done, ${discovered.reviewStatuses.length} Review/QA, and ${discovered.initialStatuses.length} Initial status(es) in ${discovered.projectKey}. Click "Save Rules" to persist.`,
+      'success',
+    );
+  } catch (err) {
+    showRulesFeedback(
+      `Auto-discovery failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      'error',
+    );
+  } finally {
+    discoverStatusesBtn.disabled = false;
+  }
+});
+
+discoveryReviewBtn.addEventListener('click', () => openRulesDrawer());
+discoveryDismissBtn.addEventListener('click', () => discoveryBanner.classList.add('hidden'));
+
+sampleSeedInput.value = sampleSeed;
+
+toggleSampleBtn.addEventListener('click', () => {
+  sampleEnabled = !sampleEnabled;
+  if (sampleEnabled && !sampleSeedInput.value.trim()) {
+    const prefix =
+      projectSelect.value && projectSelect.value !== ALL_PROJECTS_VALUE ? projectSelect.value : 'PG';
+    sampleSeed = generateVerifiableSeed(prefix);
+    sampleSeedInput.value = sampleSeed;
+  }
+  if (currentReport) {
+    renderReport(currentReport);
+  } else {
+    renderSampleControls(null);
+  }
+});
+
+sampleSizeInput.addEventListener('change', () => {
+  if (currentReport) {
+    renderReport(currentReport);
+  } else {
+    renderSampleControls(null);
+  }
+});
+
+sampleSeedInput.addEventListener('input', () => {
+  if (sampleSeedInput.value.trim()) {
+    sampleSeed = sampleSeedInput.value.trim();
+  }
+  if (currentReport && sampleEnabled) {
+    renderReport(currentReport);
+  }
+});
+
+regenerateSeedBtn.addEventListener('click', () => {
+  const prefix =
+    projectSelect.value && projectSelect.value !== ALL_PROJECTS_VALUE ? projectSelect.value : 'PG';
+  sampleSeed = generateVerifiableSeed(prefix);
+  sampleSeedInput.value = sampleSeed;
+  if (currentReport && sampleEnabled) {
+    renderReport(currentReport);
+  }
+});
+
+async function initDashboard(): Promise<void> {
+  await loadRulesConfig();
+  const [initialProjectKey] = await Promise.all([loadProjects(), loadSnapshots()]);
+  if (initialProjectKey) {
+    sampleSeed = generateVerifiableSeed(initialProjectKey);
+    sampleSeedInput.value = sampleSeed;
+    await runFirstOpenAutoDiscovery(initialProjectKey);
+    dateRangeSelect.value = '90d';
+    await executeAudit(`Running 90-day compliance preview for project ${initialProjectKey}...`);
+  }
+}
+
+void initDashboard();
 
 onlyViolations.addEventListener('change', () => {
   if (currentReport) {
@@ -781,6 +967,26 @@ onlyViolations.addEventListener('change', () => {
 
 exportCsvBtn.addEventListener('click', async () => {
   if (!currentReport) return;
+  const { records: exportRecords, sampleMetadata } = getEffectiveSampleSelection(currentReport);
+
+  const metaLines = sampleMetadata
+    ? [
+        '# ProofGate Evidence Pack — Verifiable Auditor Random Sample',
+        `# Generated At: ${currentReport.generatedAt}`,
+        `# Scope (JQL): ${currentReport.jql}`,
+        `# Population Size: ${sampleMetadata.populationSize}`,
+        `# Sample Size: ${sampleMetadata.sampleSize}`,
+        `# Random Seed: ${sampleMetadata.seed}`,
+        `# Sampling Algorithm: ${sampleMetadata.algorithm}`,
+      ]
+    : [
+        '# ProofGate Evidence Pack — Full Population',
+        `# Generated At: ${currentReport.generatedAt}`,
+        `# Scope (JQL): ${currentReport.jql}`,
+        `# Population Size: ${currentReport.totalAudited}`,
+        `# Sample Size: ${currentReport.totalAudited}`,
+      ];
+
   const header = [
     'Key',
     'Summary',
@@ -794,7 +1000,7 @@ exportCsvBtn.addEventListener('click', async () => {
     'Violations',
   ].join(',');
 
-  const rows = currentReport.records.map((r) =>
+  const rows = exportRecords.map((r) =>
     [
       r.key,
       r.summary,
@@ -811,11 +1017,12 @@ exportCsvBtn.addEventListener('click', async () => {
       .join(','),
   );
 
-  const csvBody = [header, ...rows].join('\n');
+  const csvBody = [...metaLines, header, ...rows].join('\n');
   const sha256 = await computeSha256Hex(csvBody);
   const timestamp = currentReport.generatedAt.slice(0, 10);
+  const sampleTag = sampleMetadata ? `-sample${sampleMetadata.sampleSize}` : '';
   downloadFile(
-    `proofgate-evidence-${timestamp}-${sha256.slice(0, 8)}.csv`,
+    `proofgate-evidence-${timestamp}${sampleTag}-${sha256.slice(0, 8)}.csv`,
     `${csvBody}\n# SHA-256: ${sha256}\n`,
     'text/csv;charset=utf-8',
   );
@@ -823,7 +1030,18 @@ exportCsvBtn.addEventListener('click', async () => {
 
 exportHtmlBtn.addEventListener('click', async () => {
   if (!currentReport) return;
-  const canonicalPayload = JSON.stringify(currentReport);
+  const { records: exportRecords, sampleMetadata } = getEffectiveSampleSelection(currentReport);
+  const canonicalPayload = JSON.stringify({
+    generatedAt: currentReport.generatedAt,
+    jql: currentReport.jql,
+    totalAudited: currentReport.totalAudited,
+    compliantCount: currentReport.compliantCount,
+    nonCompliantCount: currentReport.nonCompliantCount,
+    complianceRatePercent: currentReport.complianceRatePercent,
+    controlSummaries: currentReport.controlSummaries,
+    sample: sampleMetadata,
+    records: exportRecords,
+  });
   const sha256 = await computeSha256Hex(canonicalPayload);
   const timestamp = currentReport.generatedAt.slice(0, 10);
 
@@ -834,7 +1052,7 @@ exportHtmlBtn.addEventListener('click', async () => {
     )
     .join('');
 
-  const issueRows = currentReport.records
+  const issueRows = exportRecords
     .map(
       (r) => `
       <tr>
@@ -849,6 +1067,16 @@ exportHtmlBtn.addEventListener('click', async () => {
     )
     .join('');
 
+  const samplingHtml = sampleMetadata
+    ? `
+  <div class="sample-attestation">
+    <strong>Verifiable Auditor Random Sample Attestation</strong>
+    <div><strong>Population Size:</strong> ${sampleMetadata.populationSize} · <strong>Sample Size:</strong> ${sampleMetadata.sampleSize} (requested N=${sampleMetadata.requestedSampleSize})</div>
+    <div><strong>Verifiable Random Seed:</strong> <code>${escapeHtml(sampleMetadata.seed)}</code></div>
+    <div><strong>Algorithm:</strong> <code>${escapeHtml(sampleMetadata.algorithm)}</code> (re-running ProofGate with the same population &amp; seed reproduces this exact sample)</div>
+  </div>`
+    : `<div><strong>Sampling Mode:</strong> Full Population (${currentReport.totalAudited} of ${currentReport.totalAudited} changes)</div>`;
+
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -859,7 +1087,8 @@ exportHtmlBtn.addEventListener('click', async () => {
     table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
     th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
     th { background: #f4f5f7; }
-    .meta { background: #f4f5f7; padding: 12px; border-radius: 6px; font-size: 13px; }
+    .meta { background: #f4f5f7; padding: 12px; border-radius: 6px; font-size: 13px; line-height: 1.5; }
+    .sample-attestation { margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: #f3f0ff; border: 1px solid #dfd8fd; color: #403294; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -867,15 +1096,16 @@ exportHtmlBtn.addEventListener('click', async () => {
   <div class="meta">
     <div><strong>Generated At:</strong> ${escapeHtml(currentReport.generatedAt)}</div>
     <div><strong>Scope (JQL):</strong> <code>${escapeHtml(currentReport.jql)}</code></div>
-    <div><strong>Summary:</strong> ${currentReport.compliantCount}/${currentReport.totalAudited} compliant (${currentReport.complianceRatePercent}%)</div>
+    <div><strong>Population Summary:</strong> ${currentReport.compliantCount}/${currentReport.totalAudited} compliant (${currentReport.complianceRatePercent}%)</div>
     <div><strong>Report SHA-256 Fingerprint:</strong> <code>${sha256}</code></div>
+    ${samplingHtml}
   </div>
   <h2>Framework Control Summary</h2>
   <table>
     <thead><tr><th>Control</th><th>Passed</th><th>Exceptions</th></tr></thead>
     <tbody>${controlsRows}</tbody>
   </table>
-  <h2>Audited Change Records</h2>
+  <h2>${sampleMetadata ? `Audited Change Sample (${sampleMetadata.sampleSize} of ${sampleMetadata.populationSize})` : 'Audited Change Records'}</h2>
   <table>
     <thead><tr><th>Key</th><th>Summary</th><th>Assignee</th><th>Approver</th><th>Completed At</th><th>Status</th><th>Findings</th></tr></thead>
     <tbody>${issueRows}</tbody>
@@ -883,8 +1113,9 @@ exportHtmlBtn.addEventListener('click', async () => {
 </body>
 </html>`;
 
+  const sampleTag = sampleMetadata ? `-sample${sampleMetadata.sampleSize}` : '';
   downloadFile(
-    `proofgate-report-${timestamp}-${sha256.slice(0, 8)}.html`,
+    `proofgate-report-${timestamp}${sampleTag}-${sha256.slice(0, 8)}.html`,
     html,
     'text/html;charset=utf-8',
   );

@@ -14,6 +14,10 @@ import {
   sanitizeSnapshotList,
 } from './audit/snapshots';
 import {
+  classifyProjectStatuses,
+  RawJiraIssueTypeStatuses,
+} from './audit/statusDiscovery';
+import {
   AuditReport,
   AuditRuleConfig,
   AuditSnapshotRecord,
@@ -76,6 +80,48 @@ resolver.define('resetRulesConfig', async (): Promise<AuditRuleConfig> => {
   const defaults = sanitizeRulesConfig(DEFAULT_AUDIT_RULES);
   await kvs.set(RULES_STORAGE_KEY, defaults);
   return defaults;
+});
+
+resolver.define('discoverProjectStatuses', async (req) => {
+  const payload = (req.payload ?? {}) as {
+    projectKey?: string;
+    persistIfUnconfigured?: boolean;
+  };
+  const contextProjectKey = (req.context?.extension as { project?: { key?: string } } | undefined)
+    ?.project?.key;
+  const targetProjectKey = payload.projectKey?.trim() || contextProjectKey?.trim() || '';
+
+  if (!targetProjectKey || targetProjectKey === ALL_PROJECTS_VALUE) {
+    throw new Error('Select a specific Jira project to auto-discover workflow statuses.');
+  }
+
+  const response = await api
+    .asUser()
+    .requestJira(route`/rest/api/3/project/${targetProjectKey}/statuses`, {
+      headers: { Accept: 'application/json' },
+    });
+
+  if (!response.ok) {
+    throw new Error(`Failed to discover project statuses (HTTP ${response.status})`);
+  }
+
+  const rawIssueTypes = (await response.json()) as RawJiraIssueTypeStatuses[];
+  const existingSaved = (await kvs.get(RULES_STORAGE_KEY)) as Partial<AuditRuleConfig> | undefined;
+  const hasSavedRules = existingSaved !== undefined;
+  const baseRules = sanitizeRulesConfig(existingSaved);
+
+  const discovered = classifyProjectStatuses(targetProjectKey, rawIssueTypes, baseRules);
+  const autoApplied = Boolean(payload.persistIfUnconfigured && !hasSavedRules);
+
+  if (autoApplied) {
+    await kvs.set(RULES_STORAGE_KEY, discovered.suggestedRules);
+  }
+
+  return {
+    ...discovered,
+    hasSavedRules,
+    autoApplied,
+  };
 });
 
 resolver.define('getProjects', async (req) => {

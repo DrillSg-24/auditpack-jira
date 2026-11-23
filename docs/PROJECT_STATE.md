@@ -1,8 +1,8 @@
 # Project State & Session Handoff — ProofGate for Jira (`auditpack-jira`)
 
-> **Last Updated:** 2026-11-22
+> **Last Updated:** 2026-11-23
 > **Official Public Brand:** `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`
-> **Current Phase:** Phase 3 — Week 2 100% Complete (`PG-4`–`PG-8` + `PG-9` Done & Deployed); Starting Week 3 Conversion & Anti-Churn Suite (`PG-10`–`PG-15`)
+> **Current Phase:** Phase 3 — Week 3 Batch 1 Complete (`PG-9`, `PG-10`, `PG-11` Done & Deployed); Next: Week 3 Batch 2 (`PG-12` Signed Exception Justifications & `PG-13` Compliance Trendline UI)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Tech Stack & Dev Notes:**
   - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
   - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
-  - Tests: Vitest (`tests/` — currently **29/29 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`).
+  - Tests: Vitest (`tests/` — currently **36/36 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`, `statusDiscovery.test.ts`, `sampler.test.ts`).
   - Main Dev Environment: **WSL Ubuntu (Node `v24.22.3` via `fnm`)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`).
 
 ---
@@ -43,8 +43,8 @@
 
 ### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports (`PG-2`)
 - [x] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`). (`PG-9`)
-- [ ] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open. (`PG-10`)
-- [ ] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports. (`PG-11`)
+- [x] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open. (`PG-10`)
+- [x] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports. (`PG-11`)
 - [ ] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs. (`PG-12`)
 - [ ] **Saved Monthly/Quarterly Audit Snapshots + Trendline (`@forge/kvs`):** Persist summary snapshots + SHA-256 hashes and display compliance progression over time. (`PG-13`)
 - [ ] **Boardroom-Grade Print-to-PDF CSS:** `@media print` Executive Cover, Control Matrix, Sign-Off block, and clean page breaks. (`PG-14`)
@@ -59,8 +59,10 @@
 ---
 
 ## 3. Immediate Next Step (Pick Up Here Next Session)
-1. **Live Smoke-Test Week 2 Build on `drillsgdev.atlassian.net`:** Open **ProofGate Evidence** inside project `PG` to verify Project/FixVersion/Date pickers, Rules Configuration drawer, SOC 2 / ISO / DORA control cards, pill findings, and Save Snapshot against real `PG-4`–`PG-9` history.
-2. **Start Week 3 — `PG-10` & `PG-11`:**
-   - **`PG-10` (10-Second Zero-Setup Auto-Discovery):** Add `discoverProjectStatuses` resolver (`/rest/api/3/project/{key}/statuses`) in `src/index.ts` + pure classifier in `src/audit/statusDiscovery.ts` (`review|qa|test|approv|cab` → Review, `statusCategory.key === 'done'` → Done), plus auto-run 90-day preview on first open.
-   - **`PG-11` (1-Click Auditor Random Sample `N = 25` with Verifiable Seed):** Add pure deterministic seeded Fisher-Yates sampler in `src/audit/sampler.ts` + UI toggle + print Population Size, Sample Size, Random Seed, and SHA-256 hash in CSV & HTML/PDF exports.
+1. **Start Week 3 Batch 2 — `PG-12` & `PG-13`:**
+   - **`PG-12` (Signed Exception Justifications in `@forge/kvs` & Exports):** Add `src/audit/justifications.ts` + KVS resolvers (`getExceptionJustifications`, `saveExceptionJustification`) attributing the authenticated Jira user (`req.context.accountId` + Jira `/rest/api/3/myself` displayName) and UTC timestamp; add click-to-justify modal/inline editor on flagged rows and render signed justifications in CSV & HTML/PDF Evidence Packs.
+   - **`PG-13` (Monthly/Quarterly Audit Snapshots + Compliance Trendline UI):** Upgrade the Saved Audit Snapshots section with named period labels (`Q4 2026`, `2026-11`) and an inline zero-dependency SVG Compliance Trendline chart (`Q1 → Q2 → Q3`).
+2. **Then Week 3 Batch 3 — `PG-14` & `PG-15`:**
+   - **`PG-14` (Boardroom-Grade Print-to-PDF CSS):** Executive Cover page, Control Matrix, Sign-Off block, and `@media print` page breaks.
+   - **`PG-15` (Ethical "Peak Delight" Review Nudge):** Quiet, permanently dismissible 1-line banner after a user's 2nd successful export.
    - Remember to transition each Jira ticket through `In Progress (21) → In Review (31) → Done (41)` with an implementation note.
