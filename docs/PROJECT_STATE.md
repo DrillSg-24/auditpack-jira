@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-11-23
 > **Official Public Brand:** `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`
-> **Current Phase:** Phase 3 — Week 3 Batch 1 Complete (`PG-9`, `PG-10`, `PG-11` Done & Deployed); Next: Week 3 Batch 2 (`PG-12` Signed Exception Justifications & `PG-13` Compliance Trendline UI)
+> **Current Phase:** Phase 3 — Week 3 Batch 2 Complete (`PG-9`–`PG-13` Done & Deployed); Next: Week 3 Batch 3 (`PG-14` Boardroom Print-to-PDF CSS & `PG-15` Peak Delight Review Nudge)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Tech Stack & Dev Notes:**
   - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
   - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
-  - Tests: Vitest (`tests/` — currently **36/36 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`, `statusDiscovery.test.ts`, `sampler.test.ts`).
+  - Tests: Vitest (`tests/` — currently **42/42 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`, `statusDiscovery.test.ts`, `sampler.test.ts`, `justifications.test.ts`, `trendline.test.ts`).
   - Main Dev Environment: **WSL Ubuntu (Node `v24.22.3` via `fnm`)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`).
 
 ---
@@ -45,8 +45,8 @@
 - [x] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`). (`PG-9`)
 - [x] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open. (`PG-10`)
 - [x] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports. (`PG-11`)
-- [ ] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs. (`PG-12`)
-- [ ] **Saved Monthly/Quarterly Audit Snapshots + Trendline (`@forge/kvs`):** Persist summary snapshots + SHA-256 hashes and display compliance progression over time. (`PG-13`)
+- [x] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs. (`PG-12`)
+- [x] **Saved Monthly/Quarterly Audit Snapshots + Trendline (`@forge/kvs`):** Persist summary snapshots + SHA-256 hashes and display compliance progression over time. (`PG-13`)
 - [ ] **Boardroom-Grade Print-to-PDF CSS:** `@media print` Executive Cover, Control Matrix, Sign-Off block, and clean page breaks. (`PG-14`)
 - [ ] **Ethical "Peak Delight" Review Nudge:** Dismissible 1-line Marketplace review prompt shown only after a user's 2nd successful export. (`PG-15`)
 
@@ -59,10 +59,9 @@
 ---
 
 ## 3. Immediate Next Step (Pick Up Here Next Session)
-1. **Start Week 3 Batch 2 — `PG-12` & `PG-13`:**
-   - **`PG-12` (Signed Exception Justifications in `@forge/kvs` & Exports):** Add `src/audit/justifications.ts` + KVS resolvers (`getExceptionJustifications`, `saveExceptionJustification`) attributing the authenticated Jira user (`req.context.accountId` + Jira `/rest/api/3/myself` displayName) and UTC timestamp; add click-to-justify modal/inline editor on flagged rows and render signed justifications in CSV & HTML/PDF Evidence Packs.
-   - **`PG-13` (Monthly/Quarterly Audit Snapshots + Compliance Trendline UI):** Upgrade the Saved Audit Snapshots section with named period labels (`Q4 2026`, `2026-11`) and an inline zero-dependency SVG Compliance Trendline chart (`Q1 → Q2 → Q3`).
-2. **Then Week 3 Batch 3 — `PG-14` & `PG-15`:**
-   - **`PG-14` (Boardroom-Grade Print-to-PDF CSS):** Executive Cover page, Control Matrix, Sign-Off block, and `@media print` page breaks.
-   - **`PG-15` (Ethical "Peak Delight" Review Nudge):** Quiet, permanently dismissible 1-line banner after a user's 2nd successful export.
+1. **Start Week 3 Batch 3 — `PG-14` & `PG-15`:**
+   - **`PG-14` (Boardroom-Grade Print-to-PDF Evidence Pack):** Upgrade HTML export in `static/ui/src/main.ts` with dedicated `@media print` CSS, Executive Cover page, SOC 2 CC8.1 / ISO 27001 A.8.32 / EU DORA Art. 9 Control Matrix, Signed Exception Justifications table, Auditor Sign-Off block, SHA-256 Verification block, and clean page breaks.
+   - **`PG-15` (Ethical "Peak Delight" Review Nudge):** Track successful export count in `@forge/kvs` (zero PII) and display a quiet, permanently dismissible 1-line Marketplace review prompt only after the 2nd successful Evidence Pack export.
+2. **Then Week 4 — Marketplace Submission (`PG-16`–`PG-19`):**
+   - Security/Ecoscanner verification, GitHub Pages legal/docs/SEO site, 3 Marketplace screenshots + 60-sec demo video, and Marketplace submission with progressive pricing tiers.
    - Remember to transition each Jira ticket through `In Progress (21) → In Review (31) → Done (41)` with an implementation note.

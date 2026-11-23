@@ -1,9 +1,10 @@
-import { invoke } from '@forge/bridge';
+import { invoke, router } from '@forge/bridge';
 import {
   AuditSampleMetadata,
   generateVerifiableSeed,
   selectRandomSample,
 } from '../../../src/audit/sampler';
+import { buildComplianceTrendline } from '../../../src/audit/trendline';
 import './style.css';
 
 interface AuditViolation {
@@ -118,6 +119,15 @@ interface AuditSnapshotRecord {
   sha256: string;
 }
 
+interface ExceptionJustification {
+  issueKey: string;
+  note: string;
+  authorAccountId: string;
+  authorName: string;
+  recordedAt: string;
+  violationCodes: string[];
+}
+
 interface DiscoveredStatusesResponse {
   projectKey: string;
   allStatuses: string[];
@@ -132,6 +142,8 @@ interface DiscoveredStatusesResponse {
 let currentReport: AuditReport | null = null;
 let currentRules: AuditRuleConfig = { ...DEFAULT_RULES };
 let currentSnapshots: AuditSnapshotRecord[] = [];
+let justificationsMap: Record<string, ExceptionJustification> = {};
+let activeJustificationIssue: AuditedIssueRecord | null = null;
 let activeFrameworkFilter: string | null = null;
 let sampleEnabled = false;
 let sampleSeed = generateVerifiableSeed('PG');
@@ -158,10 +170,25 @@ const resultsCard = document.getElementById('results-card') as HTMLElement;
 const resultsBody = document.getElementById('results-body') as HTMLTableSectionElement;
 const snapshotsCard = document.getElementById('snapshots-card') as HTMLElement;
 const snapshotsCount = document.getElementById('snapshots-count') as HTMLSpanElement;
+const snapshotLabelInput = document.getElementById('snapshot-label-input') as HTMLInputElement;
+const trendlineWrap = document.getElementById('trendline-wrap') as HTMLDivElement;
 const snapshotsBody = document.getElementById('snapshots-body') as HTMLTableSectionElement;
 const onlyViolations = document.getElementById('only-violations') as HTMLInputElement;
 const severityFilter = document.getElementById('severity-filter') as HTMLSelectElement;
 const activeFrameworkChip = document.getElementById('active-framework-chip') as HTMLSpanElement;
+
+// Justification modal elements (PG-12)
+const justBackdrop = document.getElementById('justification-modal-backdrop') as HTMLDivElement;
+const closeJustBtn = document.getElementById('close-justification-btn') as HTMLButtonElement;
+const cancelJustBtn = document.getElementById('cancel-justification-btn') as HTMLButtonElement;
+const doneJustBtn = document.getElementById('done-justification-btn') as HTMLButtonElement;
+const saveJustBtn = document.getElementById('save-justification-btn') as HTMLButtonElement;
+const justIssueMeta = document.getElementById('just-issue-meta') as HTMLDivElement;
+const justForm = document.getElementById('just-form') as HTMLFormElement;
+const justNoteInput = document.getElementById('just-note-input') as HTMLTextAreaElement;
+const justFeedback = document.getElementById('just-feedback') as HTMLParagraphElement;
+const justSignedView = document.getElementById('just-signed-view') as HTMLDivElement;
+const justSignedContent = document.getElementById('just-signed-content') as HTMLDivElement;
 
 // Auditor Random Sample controls (PG-11)
 const toggleSampleBtn = document.getElementById('toggle-sample-btn') as HTMLButtonElement;
@@ -220,6 +247,10 @@ function downloadFile(filename: string, content: string, mimeType: string): void
   URL.revokeObjectURL(url);
 }
 
+function getJustification(issueKey: string): ExceptionJustification | null {
+  return justificationsMap[issueKey.trim().toUpperCase()] ?? null;
+}
+
 function renderFindingsCell(record: AuditedIssueRecord): string {
   if (record.compliant || record.violations.length === 0) {
     return '<span class="finding-pill pass">All controls passed</span>';
@@ -241,7 +272,19 @@ function renderFindingsCell(record: AuditedIssueRecord): string {
     })
     .join('');
 
-  return `<div class="findings-list">${items}</div>`;
+  const justification = getJustification(record.key);
+  const justificationBlock = justification
+    ? `
+      <div class="justification-inline-note">
+        <div class="justification-inline-meta">
+          Signed by ${escapeHtml(justification.authorName)} · ${escapeHtml(justification.recordedAt.replace('T', ' ').slice(0, 16))} UTC
+        </div>
+        <div>${escapeHtml(justification.note)}</div>
+      </div>
+    `
+    : '';
+
+  return `<div class="findings-list">${items}</div>${justificationBlock}`;
 }
 
 function renderControlSummaries(report: AuditReport): void {
@@ -422,9 +465,30 @@ function renderReport(report: AuditReport): void {
 
   resultsBody.innerHTML = visibleRecords
     .map((record) => {
-      const badge = record.compliant
-        ? '<span class="badge pass">PASS</span>'
-        : '<span class="badge fail">EXCEPTION</span>';
+      const justification = getJustification(record.key);
+      let statusCellHtml: string;
+      if (record.compliant) {
+        statusCellHtml = '<span class="badge pass">PASS</span>';
+      } else if (justification) {
+        statusCellHtml = `
+          <div class="status-cell-stack">
+            <span class="badge justified">JUSTIFIED</span>
+            <button type="button" class="justify-btn" data-justify-key="${escapeHtml(record.key)}">
+              View Proof
+            </button>
+          </div>
+        `;
+      } else {
+        statusCellHtml = `
+          <div class="status-cell-stack">
+            <span class="badge fail">EXCEPTION</span>
+            <button type="button" class="justify-btn" data-justify-key="${escapeHtml(record.key)}">
+              + Justify
+            </button>
+          </div>
+        `;
+      }
+
       const versionTags =
         record.fixVersions && record.fixVersions.length > 0
           ? `<div class="summary-meta">${record.fixVersions
@@ -432,9 +496,17 @@ function renderReport(report: AuditReport): void {
               .join('')}</div>`
           : '';
 
+      const rowAttrs = record.compliant
+        ? ''
+        : ` class="exception-row" data-exception-key="${escapeHtml(record.key)}" title="Click to log or inspect signed exception justification"`;
+
       return `
-        <tr>
-          <td><strong>${escapeHtml(record.key)}</strong></td>
+        <tr${rowAttrs}>
+          <td>
+            <a href="#" class="issue-key-link" data-issue-key="${escapeHtml(record.key)}">
+              ${escapeHtml(record.key)}
+            </a>
+          </td>
           <td>
             <div>${escapeHtml(record.summary)}</div>
             ${versionTags}
@@ -442,12 +514,47 @@ function renderReport(report: AuditReport): void {
           <td>${escapeHtml(record.assigneeName)}</td>
           <td>${escapeHtml(record.approverName ?? '—')}</td>
           <td>${escapeHtml(record.completedAt ? record.completedAt.slice(0, 10) : '—')}</td>
-          <td>${badge}</td>
+          <td>${statusCellHtml}</td>
           <td>${renderFindingsCell(record)}</td>
         </tr>
       `;
     })
     .join('');
+
+  // Clickable Jira issue keys via @forge/bridge router.open
+  resultsBody.querySelectorAll<HTMLAnchorElement>('.issue-key-link').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const key = link.dataset.issueKey;
+      if (key) {
+        void router.open(`/browse/${encodeURIComponent(key)}`);
+      }
+    });
+  });
+
+  // Justification button clicks
+  resultsBody.querySelectorAll<HTMLButtonElement>('.justify-btn').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const key = btn.dataset.justifyKey;
+      const target = report.records.find((r) => r.key === key);
+      if (target) {
+        openJustificationModal(target);
+      }
+    });
+  });
+
+  // Exception row clicks open justification modal directly
+  resultsBody.querySelectorAll<HTMLTableRowElement>('.exception-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const key = row.dataset.exceptionKey;
+      const target = report.records.find((r) => r.key === key);
+      if (target) {
+        openJustificationModal(target);
+      }
+    });
+  });
 }
 
 function parseCommaSeparatedStatuses(raw: string): string[] {
@@ -629,17 +736,111 @@ function buildCurrentScopeSummary(): string {
   return `${projectText}${versionPart}${rangeLabel ? ` · ${rangeLabel}` : ''}`;
 }
 
+function renderTrendlineChart(snapshots: AuditSnapshotRecord[]): void {
+  if (snapshots.length === 0) {
+    trendlineWrap.classList.add('hidden');
+    trendlineWrap.innerHTML = '';
+    return;
+  }
+
+  const model = buildComplianceTrendline(snapshots, 12);
+  trendlineWrap.classList.remove('hidden');
+
+  let deltaHtml = '<span class="trendline-delta flat">Baseline snapshot</span>';
+  if (model.deltaFromPrevious !== null) {
+    if (model.deltaFromPrevious > 0) {
+      deltaHtml = `<span class="trendline-delta up">+${model.deltaFromPrevious}% vs prior</span>`;
+    } else if (model.deltaFromPrevious < 0) {
+      deltaHtml = `<span class="trendline-delta down">${model.deltaFromPrevious}% vs prior</span>`;
+    } else {
+      deltaHtml = '<span class="trendline-delta flat">0% vs prior (Steady)</span>';
+    }
+  }
+
+  const yTicks = [0, 50, 80, 100];
+  const gridSvg = yTicks
+    .map((tick) => {
+      const y =
+        Math.round(
+          (model.plotBottom - (tick / 100) * (model.plotBottom - model.plotTop)) * 10,
+        ) / 10;
+      const stroke = tick === 80 ? '#b3d4ff' : '#ebecf0';
+      const dash = tick === 0 ? '' : 'stroke-dasharray="4 3"';
+      return `
+        <line x1="${model.plotLeft}" y1="${y}" x2="${model.plotRight}" y2="${y}" stroke="${stroke}" stroke-width="1" ${dash} />
+        <text x="${model.plotLeft - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#5e6c84">${tick}%</text>
+      `;
+    })
+    .join('');
+
+  const areaSvg = model.areaPolygonPoints
+    ? `<polygon points="${model.areaPolygonPoints}" fill="url(#pg-trend-fill)" />`
+    : '';
+
+  const lineSvg =
+    model.points.length >= 2
+      ? `<polyline points="${model.polylinePoints}" fill="none" stroke="#0c66e4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />`
+      : '';
+
+  const pointsSvg = model.points
+    .map((pt) => {
+      const fill = pt.rate >= 90 ? '#1f845a' : pt.rate >= 70 ? '#0c66e4' : '#c9372c';
+      const shortLabel = pt.label.length > 14 ? `${pt.label.slice(0, 13)}…` : pt.label;
+      return `
+        <g>
+          <title>${escapeHtml(pt.label)} (${escapeHtml(pt.shortDate)}): ${pt.rate}% (${pt.compliantCount}/${pt.totalAudited} compliant)</title>
+          <circle cx="${pt.x}" cy="${pt.y}" r="4.5" fill="${fill}" stroke="#ffffff" stroke-width="2" />
+          <text x="${pt.x}" y="${Math.max(12, pt.y - 9)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#172b4d">${pt.rate}%</text>
+          <text x="${pt.x}" y="${model.plotBottom + 16}" text-anchor="middle" font-size="10" fill="#5e6c84">${escapeHtml(shortLabel)}</text>
+          <text x="${pt.x}" y="${model.plotBottom + 29}" text-anchor="middle" font-size="9" fill="#8590a2">${escapeHtml(pt.shortDate)}</text>
+        </g>
+      `;
+    })
+    .join('');
+
+  const hintHtml =
+    model.points.length === 1
+      ? '<p class="trendline-hint">Save another monthly or quarterly snapshot to track SOC 2 Type II / DORA compliance progression over time.</p>'
+      : '';
+
+  trendlineWrap.innerHTML = `
+    <div class="trendline-header">
+      <div class="trendline-title">Compliance Rate Progression (${model.points.length} snapshot${model.points.length === 1 ? '' : 's'})</div>
+      <div class="trendline-stats">
+        <span>Latest: <strong>${model.latestRate ?? 0}%</strong></span>
+        ${deltaHtml}
+      </div>
+    </div>
+    <svg class="trendline-svg" viewBox="0 0 ${model.width} ${model.height}" role="img" aria-label="Compliance rate trendline chart">
+      <defs>
+        <linearGradient id="pg-trend-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#0c66e4" stop-opacity="0.18" />
+          <stop offset="100%" stop-color="#0c66e4" stop-opacity="0.01" />
+        </linearGradient>
+      </defs>
+      ${gridSvg}
+      ${areaSvg}
+      ${lineSvg}
+      ${pointsSvg}
+    </svg>
+    ${hintHtml}
+  `;
+}
+
 function renderSnapshots(snapshots: AuditSnapshotRecord[]): void {
   currentSnapshots = snapshots;
   snapshotsCount.textContent = `${snapshots.length} saved`;
 
   if (snapshots.length === 0) {
     snapshotsCard.classList.add('hidden');
+    trendlineWrap.classList.add('hidden');
+    trendlineWrap.innerHTML = '';
     snapshotsBody.innerHTML = '';
     return;
   }
 
   snapshotsCard.classList.remove('hidden');
+  renderTrendlineChart(snapshots);
   snapshotsBody.innerHTML = snapshots
     .map((snap) => {
       const rateBadge =
@@ -732,19 +933,138 @@ async function executeAudit(customStatus?: string): Promise<void> {
   }
 }
 
+async function loadJustifications(): Promise<void> {
+  try {
+    const map = (await invoke('getExceptionJustifications')) as Record<
+      string,
+      ExceptionJustification
+    >;
+    if (map && typeof map === 'object') {
+      justificationsMap = map;
+    }
+  } catch {
+    // Ignore outside Forge context
+  }
+}
+
+function showJustFeedback(message: string, kind: 'error' | 'success'): void {
+  justFeedback.textContent = message;
+  justFeedback.className = `rules-feedback ${kind}`;
+}
+
+function clearJustFeedback(): void {
+  justFeedback.textContent = '';
+  justFeedback.className = 'rules-feedback hidden';
+}
+
+function openJustificationModal(record: AuditedIssueRecord): void {
+  activeJustificationIssue = record;
+  clearJustFeedback();
+
+  const pillsHtml = record.violations
+    .map((v) => {
+      const severityClass = v.severity.toUpperCase() === 'HIGH' ? 'high' : 'medium';
+      const label = VIOLATION_LABELS[v.code] ?? v.code;
+      return `<span class="finding-pill ${severityClass}">${escapeHtml(v.severity)} · ${escapeHtml(label)}</span>`;
+    })
+    .join(' ');
+
+  justIssueMeta.innerHTML = `
+    <div class="just-issue-title">${escapeHtml(record.key)} — ${escapeHtml(record.summary)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">${pillsHtml}</div>
+  `;
+
+  const existing = getJustification(record.key);
+  if (existing) {
+    justForm.classList.add('hidden');
+    justSignedView.classList.remove('hidden');
+    justSignedContent.innerHTML = `
+      <div><strong>Immutable Signed Attestation</strong></div>
+      <div class="signed-attestation-quote">${escapeHtml(existing.note)}</div>
+      <div class="signed-attestation-meta">
+        <div><strong>Signed By:</strong> ${escapeHtml(existing.authorName)}</div>
+        <div><strong>Recorded At (UTC):</strong> ${escapeHtml(existing.recordedAt)}</div>
+        <div><strong>Violations Covered:</strong> ${escapeHtml(existing.violationCodes.join(', ') || 'Exception')}</div>
+      </div>
+    `;
+  } else {
+    justSignedView.classList.add('hidden');
+    justForm.classList.remove('hidden');
+    justNoteInput.value = '';
+  }
+
+  justBackdrop.classList.remove('hidden');
+  justBackdrop.setAttribute('aria-hidden', 'false');
+  if (!existing) {
+    justNoteInput.focus();
+  }
+}
+
+function closeJustificationModal(): void {
+  justBackdrop.classList.add('hidden');
+  justBackdrop.setAttribute('aria-hidden', 'true');
+  activeJustificationIssue = null;
+}
+
+closeJustBtn.addEventListener('click', () => closeJustificationModal());
+cancelJustBtn.addEventListener('click', () => closeJustificationModal());
+doneJustBtn.addEventListener('click', () => closeJustificationModal());
+justBackdrop.addEventListener('click', (event) => {
+  if (event.target === justBackdrop) {
+    closeJustificationModal();
+  }
+});
+
+justForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!activeJustificationIssue) return;
+  clearJustFeedback();
+
+  const note = justNoteInput.value.trim();
+  if (note.length < 5) {
+    showJustFeedback('Please enter a justification note of at least 5 characters.', 'error');
+    return;
+  }
+
+  saveJustBtn.disabled = true;
+  try {
+    const res = (await invoke('saveExceptionJustification', {
+      issueKey: activeJustificationIssue.key,
+      note,
+      violationCodes: activeJustificationIssue.violations.map((v) => v.code),
+    })) as { saved: ExceptionJustification; justifications: Record<string, ExceptionJustification> };
+
+    justificationsMap = res.justifications;
+    closeJustificationModal();
+    if (currentReport) {
+      renderReport(currentReport);
+    }
+    statusMsg.textContent = `Signed justification recorded for ${res.saved.issueKey} by ${res.saved.authorName} at ${res.saved.recordedAt}.`;
+  } catch (err) {
+    showJustFeedback(
+      `Could not save justification: ${err instanceof Error ? err.message : 'Unknown error'}`,
+      'error',
+    );
+  } finally {
+    saveJustBtn.disabled = false;
+  }
+});
+
 saveSnapshotBtn.addEventListener('click', async () => {
   if (!currentReport) return;
   saveSnapshotBtn.disabled = true;
   try {
     const scopeSummary = buildCurrentScopeSummary();
-    const label = `Audit ${currentReport.generatedAt.slice(0, 10)}`;
+    const customLabel = snapshotLabelInput.value.trim();
+    const label = customLabel || `Audit ${currentReport.generatedAt.slice(0, 10)}`;
     const res = (await invoke('saveAuditSnapshot', {
       report: currentReport,
       label,
       scopeSummary,
     })) as { saved: AuditSnapshotRecord; snapshots: AuditSnapshotRecord[] };
+    snapshotLabelInput.value = '';
     renderSnapshots(res.snapshots);
-    statusMsg.textContent = `Snapshot saved to Forge KVS (SHA-256: ${res.saved.sha256.slice(0, 12)}…).`;
+    statusMsg.textContent = `Snapshot "${res.saved.label}" saved to Forge KVS (SHA-256: ${res.saved.sha256.slice(0, 12)}…).`;
   } catch (err) {
     statusMsg.textContent = `Failed to save snapshot: ${err instanceof Error ? err.message : 'Unknown error'}`;
   } finally {
@@ -781,8 +1101,12 @@ rulesBackdrop.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !rulesBackdrop.classList.contains('hidden')) {
-    closeRulesDrawer();
+  if (event.key === 'Escape') {
+    if (!justBackdrop.classList.contains('hidden')) {
+      closeJustificationModal();
+    } else if (!rulesBackdrop.classList.contains('hidden')) {
+      closeRulesDrawer();
+    }
   }
 });
 
@@ -947,7 +1271,11 @@ regenerateSeedBtn.addEventListener('click', () => {
 
 async function initDashboard(): Promise<void> {
   await loadRulesConfig();
-  const [initialProjectKey] = await Promise.all([loadProjects(), loadSnapshots()]);
+  const [initialProjectKey] = await Promise.all([
+    loadProjects(),
+    loadSnapshots(),
+    loadJustifications(),
+  ]);
   if (initialProjectKey) {
     sampleSeed = generateVerifiableSeed(initialProjectKey);
     sampleSeedInput.value = sampleSeed;
@@ -998,10 +1326,14 @@ exportCsvBtn.addEventListener('click', async () => {
     'CompletedAt',
     'Compliant',
     'Violations',
+    'Justified',
+    'JustificationNote',
+    'JustifiedByAndAt',
   ].join(',');
 
-  const rows = exportRecords.map((r) =>
-    [
+  const rows = exportRecords.map((r) => {
+    const justification = getJustification(r.key);
+    return [
       r.key,
       r.summary,
       r.issueType,
@@ -1010,12 +1342,15 @@ exportCsvBtn.addEventListener('click', async () => {
       r.approvedAt ?? '',
       r.completedByName ?? '',
       r.completedAt ?? '',
-      r.compliant ? 'PASS' : 'FAIL',
+      r.compliant ? 'PASS' : justification ? 'JUSTIFIED' : 'FAIL',
       r.violations.map((v) => v.code).join('|'),
+      justification ? 'YES' : 'NO',
+      justification ? justification.note : '',
+      justification ? `${justification.authorName} (${justification.recordedAt})` : '',
     ]
       .map(escapeCsvCell)
-      .join(','),
-  );
+      .join(',');
+  });
 
   const csvBody = [...metaLines, header, ...rows].join('\n');
   const sha256 = await computeSha256Hex(csvBody);
@@ -1031,6 +1366,10 @@ exportCsvBtn.addEventListener('click', async () => {
 exportHtmlBtn.addEventListener('click', async () => {
   if (!currentReport) return;
   const { records: exportRecords, sampleMetadata } = getEffectiveSampleSelection(currentReport);
+  const exportedJustifications = exportRecords
+    .map((r) => getJustification(r.key))
+    .filter((j): j is ExceptionJustification => j !== null);
+
   const canonicalPayload = JSON.stringify({
     generatedAt: currentReport.generatedAt,
     jql: currentReport.jql,
@@ -1040,6 +1379,7 @@ exportHtmlBtn.addEventListener('click', async () => {
     complianceRatePercent: currentReport.complianceRatePercent,
     controlSummaries: currentReport.controlSummaries,
     sample: sampleMetadata,
+    justifications: exportedJustifications,
     records: exportRecords,
   });
   const sha256 = await computeSha256Hex(canonicalPayload);
@@ -1053,19 +1393,48 @@ exportHtmlBtn.addEventListener('click', async () => {
     .join('');
 
   const issueRows = exportRecords
-    .map(
-      (r) => `
+    .map((r) => {
+      const justification = getJustification(r.key);
+      const statusText = r.compliant ? 'PASS' : justification ? 'JUSTIFIED' : 'EXCEPTION';
+      const justText = justification
+        ? `${justification.note} — Signed by ${justification.authorName} (${justification.recordedAt})`
+        : '—';
+      return `
       <tr>
         <td>${escapeHtml(r.key)}</td>
         <td>${escapeHtml(r.summary)}</td>
         <td>${escapeHtml(r.assigneeName)}</td>
         <td>${escapeHtml(r.approverName ?? '—')}</td>
         <td>${escapeHtml(r.completedAt ?? '—')}</td>
-        <td>${r.compliant ? 'PASS' : 'EXCEPTION'}</td>
+        <td>${statusText}</td>
         <td>${escapeHtml(r.violations.map((v) => `${v.code}: ${v.message}`).join(' | ') || 'None')}</td>
-      </tr>`,
-    )
+        <td>${escapeHtml(justText)}</td>
+      </tr>`;
+    })
     .join('');
+
+  const justificationsSectionHtml =
+    exportedJustifications.length > 0
+      ? `
+  <h2>Signed Exception Justifications (${exportedJustifications.length})</h2>
+  <table>
+    <thead><tr><th>Issue Key</th><th>Justification Note</th><th>Signed By</th><th>Recorded At (UTC)</th><th>Violations Covered</th></tr></thead>
+    <tbody>
+      ${exportedJustifications
+        .map(
+          (j) => `
+        <tr>
+          <td><strong>${escapeHtml(j.issueKey)}</strong></td>
+          <td>${escapeHtml(j.note)}</td>
+          <td>${escapeHtml(j.authorName)}</td>
+          <td>${escapeHtml(j.recordedAt)}</td>
+          <td>${escapeHtml(j.violationCodes.join(', ') || 'Exception')}</td>
+        </tr>`,
+        )
+        .join('')}
+    </tbody>
+  </table>`
+      : '';
 
   const samplingHtml = sampleMetadata
     ? `
@@ -1085,7 +1454,7 @@ exportHtmlBtn.addEventListener('click', async () => {
   <style>
     body { font-family: Arial, sans-serif; color: #172b4d; padding: 24px; }
     table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
     th { background: #f4f5f7; }
     .meta { background: #f4f5f7; padding: 12px; border-radius: 6px; font-size: 13px; line-height: 1.5; }
     .sample-attestation { margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: #f3f0ff; border: 1px solid #dfd8fd; color: #403294; font-size: 12px; }
@@ -1096,7 +1465,7 @@ exportHtmlBtn.addEventListener('click', async () => {
   <div class="meta">
     <div><strong>Generated At:</strong> ${escapeHtml(currentReport.generatedAt)}</div>
     <div><strong>Scope (JQL):</strong> <code>${escapeHtml(currentReport.jql)}</code></div>
-    <div><strong>Population Summary:</strong> ${currentReport.compliantCount}/${currentReport.totalAudited} compliant (${currentReport.complianceRatePercent}%)</div>
+    <div><strong>Population Summary:</strong> ${currentReport.compliantCount}/${currentReport.totalAudited} compliant (${currentReport.complianceRatePercent}%) · ${exportedJustifications.length} signed exception justification(s)</div>
     <div><strong>Report SHA-256 Fingerprint:</strong> <code>${sha256}</code></div>
     ${samplingHtml}
   </div>
@@ -1105,9 +1474,10 @@ exportHtmlBtn.addEventListener('click', async () => {
     <thead><tr><th>Control</th><th>Passed</th><th>Exceptions</th></tr></thead>
     <tbody>${controlsRows}</tbody>
   </table>
+  ${justificationsSectionHtml}
   <h2>${sampleMetadata ? `Audited Change Sample (${sampleMetadata.sampleSize} of ${sampleMetadata.populationSize})` : 'Audited Change Records'}</h2>
   <table>
-    <thead><tr><th>Key</th><th>Summary</th><th>Assignee</th><th>Approver</th><th>Completed At</th><th>Status</th><th>Findings</th></tr></thead>
+    <thead><tr><th>Key</th><th>Summary</th><th>Assignee</th><th>Approver</th><th>Completed At</th><th>Status</th><th>Findings</th><th>Signed Justification</th></tr></thead>
     <tbody>${issueRows}</tbody>
   </table>
 </body>

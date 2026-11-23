@@ -9,6 +9,12 @@ import { ALL_PROJECTS_VALUE, buildAuditJql, DateRangePreset } from './audit/jqlB
 import { sanitizeRulesConfig } from './audit/rulesConfig';
 import { buildAuditReport } from './audit/rulesEngine';
 import {
+  createJustificationRecord,
+  JUSTIFICATIONS_STORAGE_KEY,
+  recordJustificationImmutable,
+  sanitizeJustificationMap,
+} from './audit/justifications';
+import {
   appendSnapshot,
   createSnapshotRecord,
   sanitizeSnapshotList,
@@ -22,6 +28,7 @@ import {
   AuditRuleConfig,
   AuditSnapshotRecord,
   DEFAULT_AUDIT_RULES,
+  ExceptionJustification,
 } from './audit/types';
 
 const RULES_STORAGE_KEY = 'auditpack:rules:v1';
@@ -254,6 +261,73 @@ resolver.define('deleteAuditSnapshot', async (req) => {
   const snapshots = existing.filter((item) => item.id !== id);
   await kvs.set(SNAPSHOTS_STORAGE_KEY, snapshots);
   return { snapshots };
+});
+
+interface RawJiraMyself {
+  accountId?: string;
+  displayName?: string;
+}
+
+async function resolveCurrentUser(
+  fallbackAccountId?: string,
+): Promise<{ accountId: string; displayName: string }> {
+  try {
+    const response = await api.asUser().requestJira(route`/rest/api/3/myself`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (response.ok) {
+      const data = (await response.json()) as RawJiraMyself;
+      if (data.accountId || data.displayName) {
+        return {
+          accountId: data.accountId?.trim() || fallbackAccountId || 'unknown',
+          displayName: data.displayName?.trim() || 'Authenticated Jira User',
+        };
+      }
+    }
+  } catch {
+    // Fall back safely to Forge context accountId without logging user PII.
+  }
+
+  return {
+    accountId: fallbackAccountId?.trim() || 'unknown',
+    displayName: 'Authenticated Jira User',
+  };
+}
+
+resolver.define(
+  'getExceptionJustifications',
+  async (): Promise<Record<string, ExceptionJustification>> => {
+    const raw = await kvs.get(JUSTIFICATIONS_STORAGE_KEY);
+    return sanitizeJustificationMap(raw);
+  },
+);
+
+resolver.define('saveExceptionJustification', async (req) => {
+  const payload = (req.payload ?? {}) as {
+    issueKey?: string;
+    note?: string;
+    violationCodes?: string[];
+  };
+
+  if (!payload.issueKey || !payload.note) {
+    throw new Error('Both issueKey and a justification note are required.');
+  }
+
+  const contextAccountId = (req.context as { accountId?: string } | undefined)?.accountId;
+  const actor = await resolveCurrentUser(contextAccountId);
+
+  const existing = sanitizeJustificationMap(await kvs.get(JUSTIFICATIONS_STORAGE_KEY));
+  const saved = createJustificationRecord({
+    issueKey: payload.issueKey,
+    note: payload.note,
+    authorAccountId: actor.accountId,
+    authorName: actor.displayName,
+    violationCodes: payload.violationCodes,
+  });
+
+  const justifications = recordJustificationImmutable(existing, saved);
+  await kvs.set(JUSTIFICATIONS_STORAGE_KEY, justifications);
+  return { saved, justifications };
 });
 
 export const handler = resolver.getDefinitions();

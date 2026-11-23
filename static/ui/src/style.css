@@ -56,6 +56,13 @@ h2 {
 .actions {
   display: flex;
   gap: 8px;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.actions .btn {
+  white-space: nowrap;
 }
 
 .card {
@@ -554,9 +561,15 @@ th {
 /* Compliance Framework Control Summary Cards (PG-6) */
 .controls-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+@media (max-width: 720px) {
+  .controls-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .control-card {
@@ -932,4 +945,259 @@ th {
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
+}
+
+/* Clickable Jira Issue Keys (Polish) */
+.issue-key-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.issue-key-link:hover {
+  text-decoration: underline;
+}
+
+/* Signed Exception Justifications (PG-12) */
+.badge.justified {
+  background: #eae6ff;
+  color: #403294;
+  border: 1px solid #c0b6f2;
+}
+
+.status-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.justify-btn {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.justify-btn:hover {
+  background: #e9f2ff;
+  border-color: #85b8ff;
+}
+
+.exception-row {
+  cursor: pointer;
+}
+
+.exception-row:hover {
+  background: #fafbfc;
+}
+
+.justification-inline-note {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f3f0ff;
+  border-left: 3px solid #6554c0;
+  font-size: 12px;
+  color: #253858;
+}
+
+.justification-inline-meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: #403294;
+  margin-bottom: 2px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 30, 66, 0.54);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  z-index: 1100;
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(9, 30, 66, 0.25);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-body {
+  padding: 18px 22px 20px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.just-issue-meta {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.just-issue-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.just-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  resize: vertical;
+}
+
+.just-form textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+
+.immutability-notice {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fffae6;
+  border: 1px solid #ffe380;
+  color: #5e4700;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.signed-attestation-box {
+  padding: 14px;
+  border-radius: 8px;
+  background: #f3f0ff;
+  border: 1px solid #c0b6f2;
+  color: #172b4d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.signed-attestation-quote {
+  margin: 8px 0 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #dfd8fd;
+  white-space: pre-wrap;
+}
+
+.signed-attestation-meta {
+  font-size: 12px;
+  color: #403294;
+}
+
+/* Compliance Trendline Chart (PG-13) */
+.snapshot-label-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.snapshot-label-controls input {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  width: 220px;
+  color: var(--text);
+  background: #ffffff;
+}
+
+.trendline-wrap {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px 10px;
+  margin-bottom: 14px;
+}
+
+.trendline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.trendline-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.trendline-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.trendline-delta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.trendline-delta.up {
+  background: var(--pass-bg);
+  color: var(--pass-text);
+}
+
+.trendline-delta.down {
+  background: var(--fail-bg);
+  color: var(--fail-text);
+}
+
+.trendline-delta.flat {
+  background: #f1f2f4;
+  color: var(--muted);
+}
+
+.trendline-svg {
+  width: 100%;
+  height: auto;
+  max-height: 195px;
+  display: block;
+}
+
+.trendline-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }

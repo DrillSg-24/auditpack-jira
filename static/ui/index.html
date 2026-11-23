@@ -18,7 +18,7 @@
           <button id="configure-rules-btn" class="btn secondary" type="button">Configure Rules</button>
           <button id="save-snapshot-btn" class="btn secondary" type="button" disabled>Save Snapshot</button>
           <button id="export-csv-btn" class="btn secondary" type="button" disabled>Export CSV</button>
-          <button id="export-html-btn" class="btn secondary" type="button" disabled>Export Evidence Pack (HTML/PDF)</button>
+          <button id="export-html-btn" class="btn secondary" type="button" disabled>Export HTML/PDF</button>
         </div>
       </header>
 
@@ -147,13 +147,23 @@
       <section id="snapshots-card" class="card hidden">
         <div class="table-header">
           <div class="table-title-group">
-            <h2>Saved Audit Snapshots</h2>
+            <h2>Saved Audit Snapshots &amp; Trendline</h2>
             <span id="snapshots-count" class="rule-pill">0 saved</span>
           </div>
-          <span class="snapshot-note">
-            Aggregate metadata &amp; SHA-256 hashes persisted in Forge KVS (zero issue PII).
-          </span>
+          <div class="snapshot-label-controls">
+            <input
+              id="snapshot-label-input"
+              type="text"
+              maxlength="100"
+              placeholder="Optional period label (e.g. Q4 2026)"
+              aria-label="Optional snapshot period label"
+            />
+            <span class="snapshot-note">
+              PII-free metadata &amp; SHA-256 hashes in Forge KVS.
+            </span>
+          </div>
         </div>
+        <div id="trendline-wrap" class="trendline-wrap hidden"></div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -292,6 +302,74 @@
           </div>
         </form>
       </aside>
+    </div>
+
+    <div id="justification-modal-backdrop" class="modal-backdrop hidden" aria-hidden="true">
+      <div
+        id="justification-modal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="justification-modal-title"
+      >
+        <div class="modal-header">
+          <div>
+            <h2 id="justification-modal-title">Signed Exception Justification</h2>
+            <p class="drawer-subtitle">
+              Immutable compliance record stored in Atlassian Forge Storage (zero egress).
+            </p>
+          </div>
+          <button
+            id="close-justification-btn"
+            class="icon-btn"
+            type="button"
+            aria-label="Close justification modal"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div id="just-issue-meta" class="just-issue-meta"></div>
+
+          <form id="just-form" class="just-form" novalidate>
+            <div class="field">
+              <label for="just-note-input">Exception Justification Note</label>
+              <textarea
+                id="just-note-input"
+                rows="4"
+                maxlength="1000"
+                placeholder="e.g. Emergency 3 AM P0 production hotfix approved in #incidents by CTO; post-merge peer review completed in PR #412."
+                required
+              ></textarea>
+              <span class="field-hint">
+                Minimum 5 characters. Included verbatim in CSV &amp; HTML/PDF Evidence Packs.
+              </span>
+            </div>
+
+            <div class="immutability-notice">
+              Once signed, this justification is permanently stamped with your authenticated Jira
+              identity and UTC timestamp and cannot be edited or deleted.
+            </div>
+
+            <p id="just-feedback" class="rules-feedback hidden" role="alert"></p>
+
+            <div class="modal-footer">
+              <button id="cancel-justification-btn" class="btn secondary" type="button">Cancel</button>
+              <button id="save-justification-btn" class="btn primary" type="submit">
+                Sign &amp; Save Justification
+              </button>
+            </div>
+          </form>
+
+          <div id="just-signed-view" class="hidden">
+            <div id="just-signed-content" class="signed-attestation-box"></div>
+            <div class="modal-footer">
+              <button id="done-justification-btn" class="btn primary" type="button">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

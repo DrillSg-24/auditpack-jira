@@ -114,3 +114,12 @@ export interface AuditSnapshotRecord {
   controlSummaries: ControlSummary[];
   sha256: string;
 }
+
+export interface ExceptionJustification {
+  issueKey: string;
+  note: string;
+  authorAccountId: string;
+  authorName: string;
+  recordedAt: string;
+  violationCodes: string[];
+}
