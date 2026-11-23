@@ -2,24 +2,25 @@
 
 > **Last Updated:** 2026-11-23
 > **Official Public Brand:** `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`
-> **Current Phase:** Phase 3 — Week 3 Batch 2 Complete (`PG-9`–`PG-13` Done & Deployed); Next: Week 3 Batch 3 (`PG-14` Boardroom Print-to-PDF CSS & `PG-15` Peak Delight Review Nudge)
+> **Current Phase:** Phase 4 — All Code Tasks 100% Complete (`PG-4`–`PG-16` Done & Deployed); Launch Assets & Marketplace Submission Next (`PG-17`–`PG-19`)
 
 ---
 
 ## 1. Strategic Decisions Locked In
 *(Full business, pricing, ASO, and launch context lives in `docs/PRODUCT_BRIEF.md`.)*
 - **Product:** **ProofGate** — Jira Change-Management & Audit Evidence Packager (`SOC 2 CC8.1`, `ISO 27001 A.8.32`, `EU DORA Art. 9`).
-- **Platform:** Pure **"Runs on Atlassian" Forge** app (`nodejs24.x`, `@forge/kvs`, Vite+TS Custom UI, 0% Atlassian commission up to $1M).
+- **Platform:** Pure **"Runs on Atlassian" Forge** app (`nodejs24.x`, `@forge/kvs`, Vite+TS Custom UI, `app.licensing.enabled: true`, 0% Atlassian commission up to $1M).
 - **Pricing:** Free `1–10` users · `$1.25/u` (`11–100`) · `$0.85/u` (`101–250`) · `$0.45/u` (`251–1,000`) · `$0.20/u` (`1,001+`) + ~17% annual discount.
 - **Target Goal (Year 1):** €3,000–€5,000 total / ramping to €1,000/month (~7 mid-sized Jira teams or 2 annual 250-seat teams).
 - **Jira Delivery Workflow (`drillsgdev.atlassian.net`, project `PG`):**
-  - Epics: `PG-1` (Week 2 — Complete), `PG-2` (Week 3 — Active), `PG-3` (Week 4); child tasks `PG-4`–`PG-19`.
+  - Epics: `PG-1` (Week 2 — Complete), `PG-2` (Week 3 — Complete), `PG-3` (Week 4 — Active); child tasks `PG-4`–`PG-19`.
   - Move every task through **`To Do (11) → In Progress (21) → In Review (31) → Done (41)`** and leave a short implementation note comment upon completion (doubles as real change-history dogfooding data for ProofGate).
 - **Tech Stack & Dev Notes:**
   - Backend: Atlassian Forge (`nodejs24.x`, TypeScript, `@forge/api`, `@forge/kvs`, `@forge/resolver`).
-  - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/printable HTML-PDF export + Web Crypto SHA-256 fingerprint.
-  - Tests: Vitest (`tests/` — currently **42/42 passing** across `rulesEngine.test.ts`, `rulesConfig.test.ts`, `jqlBuilder.test.ts`, `jiraFetcher.test.ts`, `snapshots.test.ts`, `statusDiscovery.test.ts`, `sampler.test.ts`, `justifications.test.ts`, `trendline.test.ts`).
+  - Frontend: Lightweight **Vite + TypeScript** Custom UI (`static/ui/`, `@forge/bridge`), client-side CSV/boardroom Print-to-PDF HTML export + Web Crypto SHA-256 fingerprint.
+  - Tests: Vitest (`tests/` — currently **49/49 passing** across 12 test files).
   - Main Dev Environment: **WSL Ubuntu (Node `v24.22.3` via `fnm`)** synced via private GitHub repo (`DrillSg-24/auditpack-jira`).
+  - Marketplace Review URL Constant: `MARKETPLACE_REVIEW_URL` in `src/audit/reviewNudge.ts` (update to final published Marketplace App ID URL after approval).
 
 ---
 
@@ -41,17 +42,17 @@
 - [x] Add edge-case handling & tests: reopened issues, bulk transitions, deleted/anonymized Jira accounts, multi-step approval workflows, pagination (`nextPageToken`) >50 issues. (`PG-7`)
 - [x] Add saved **Audit Snapshot History** in `@forge/kvs` (metadata + SHA-256 hash + summary counts). (`PG-8`)
 
-### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports (`PG-2`)
+### Week 3 — Anti-Churn Conversion Features & Auditor-Grade Exports (`PG-2`) — COMPLETE
 - [x] **Rebrand UI & manifest titles** from `AuditPack` → **`ProofGate`** (avoiding live collision with `AuditPack for JSM`). (`PG-9`)
 - [x] **10-Second Zero-Setup Auto-Discovery:** Auto-fetch project statuses (`/rest/api/3/project/{key}/statuses`), auto-classify Done & Review statuses, and auto-run a 90-day preview on first open. (`PG-10`)
 - [x] **1-Click Auditor Random Sample (`N = 25` with Verifiable Seed):** Seeded Fisher-Yates shuffle printing Population Size, Sample Size, Seed, and SHA-256 hash in CSV & HTML/PDF reports. (`PG-11`)
 - [x] **Signed Exception Justifications (`@forge/kvs`):** Allow logging timestamped, author-attributed justification notes on flagged exceptions (e.g., emergency P0 hotfix) and render them in exported Evidence Packs. (`PG-12`)
 - [x] **Saved Monthly/Quarterly Audit Snapshots + Trendline (`@forge/kvs`):** Persist summary snapshots + SHA-256 hashes and display compliance progression over time. (`PG-13`)
-- [ ] **Boardroom-Grade Print-to-PDF CSS:** `@media print` Executive Cover, Control Matrix, Sign-Off block, and clean page breaks. (`PG-14`)
-- [ ] **Ethical "Peak Delight" Review Nudge:** Dismissible 1-line Marketplace review prompt shown only after a user's 2nd successful export. (`PG-15`)
+- [x] **Boardroom-Grade Print-to-PDF CSS:** `@media print` Executive Cover, Control Matrix, Sign-Off block, and clean page breaks. (`PG-14`)
+- [x] **Ethical "Peak Delight" Review Nudge:** Dismissible 1-line Marketplace review prompt shown only after a user's 2nd successful export. (`PG-15`)
 
 ### Week 4 — Marketplace Submission & €0 Launch (`PG-3`)
-- [ ] Run `forge lint` (0 errors, 0 warnings) + verify **"Runs on Atlassian"** eligibility + Ecoscanner hygiene. (`PG-16`)
+- [x] Run `forge lint` (0 errors, 0 warnings) + verify **"Runs on Atlassian"** eligibility + Ecoscanner hygiene + `app.licensing.enabled: true` + `npm audit --omit=dev`. (`PG-16`)
 - [ ] Publish free GitHub Pages docs/legal site (Privacy Policy, Terms, Support portal link, German `Impressum`, + 3 SEO guides). (`PG-17`)
 - [ ] Capture 3 Marketplace screenshots + 60-second silent demo video using finalized copy from `docs/PRODUCT_BRIEF.md`. (`PG-18`)
 - [ ] Submit **`ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira`** to Atlassian Marketplace with progressive pricing tiers (`1–10` free). (`PG-19`)
@@ -59,9 +60,9 @@
 ---
 
 ## 3. Immediate Next Step (Pick Up Here Next Session)
-1. **Start Week 3 Batch 3 — `PG-14` & `PG-15`:**
-   - **`PG-14` (Boardroom-Grade Print-to-PDF Evidence Pack):** Upgrade HTML export in `static/ui/src/main.ts` with dedicated `@media print` CSS, Executive Cover page, SOC 2 CC8.1 / ISO 27001 A.8.32 / EU DORA Art. 9 Control Matrix, Signed Exception Justifications table, Auditor Sign-Off block, SHA-256 Verification block, and clean page breaks.
-   - **`PG-15` (Ethical "Peak Delight" Review Nudge):** Track successful export count in `@forge/kvs` (zero PII) and display a quiet, permanently dismissible 1-line Marketplace review prompt only after the 2nd successful Evidence Pack export.
-2. **Then Week 4 — Marketplace Submission (`PG-16`–`PG-19`):**
-   - Security/Ecoscanner verification, GitHub Pages legal/docs/SEO site, 3 Marketplace screenshots + 60-sec demo video, and Marketplace submission with progressive pricing tiers.
-   - Remember to transition each Jira ticket through `In Progress (21) → In Review (31) → Done (41)` with an implementation note.
+1. **Start `PG-17` (Free GitHub Pages Docs, Legal & SEO Site):**
+   - Build static GitHub Pages site (`docs-site/` or dedicated repo) containing Privacy Policy (zero egress / Runs on Atlassian / zero sub-processors), Terms of Service, Support link, German `Impressum` (§ 5 DDG), and the 3 technical SEO guides (*SOC 2 CC8.1 in Jira*, *ISO 27001 A.8.32 & DORA in Jira*, *Proving SoD in Jira without JSM*).
+2. **Capture `PG-18` Launch Visuals:**
+   - Capture the 3 Marketplace screenshots + 60-second silent walkthrough video directly from live `drillsgdev.atlassian.net` using the deployed **ProofGate** app!
+3. **Production Deploy & Submit `PG-19`:**
+   - Run `forge deploy -e production`, verify live production install, submit `ProofGate — SOC 2, ISO 27001 & DORA Audit for Jira` on Atlassian Marketplace, and update `MARKETPLACE_REVIEW_URL` in `src/audit/reviewNudge.ts` once the listing ID is live.

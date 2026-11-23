@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import api, { route } from '@forge/api';
 import { kvs } from '@forge/kvs';
 import Resolver from '@forge/resolver';
@@ -6,14 +7,26 @@ import {
   JiraSearchPageResponse,
 } from './audit/jiraFetcher';
 import { ALL_PROJECTS_VALUE, buildAuditJql, DateRangePreset } from './audit/jqlBuilder';
-import { sanitizeRulesConfig } from './audit/rulesConfig';
-import { buildAuditReport } from './audit/rulesEngine';
 import {
   createJustificationRecord,
   JUSTIFICATIONS_STORAGE_KEY,
   recordJustificationImmutable,
   sanitizeJustificationMap,
 } from './audit/justifications';
+import {
+  assertLicensed,
+  evaluateLicenseAccess,
+  ForgeResolverContextLike,
+} from './audit/licensing';
+import {
+  markReviewNudgeDismissed,
+  recordExportCompletion,
+  ReviewNudgeView,
+  sanitizeReviewNudgeState,
+  toReviewNudgeView,
+} from './audit/reviewNudge';
+import { sanitizeRulesConfig } from './audit/rulesConfig';
+import { buildAuditReport } from './audit/rulesEngine';
 import {
   appendSnapshot,
   createSnapshotRecord,
@@ -33,7 +46,19 @@ import {
 
 const RULES_STORAGE_KEY = 'auditpack:rules:v1';
 const SNAPSHOTS_STORAGE_KEY = 'proofgate:snapshots:v1';
+const REVIEW_NUDGE_KEY_PREFIX = 'proofgate:nudge:v1:';
 const MAX_ISSUES_PER_RUN = 500;
+
+function getReviewNudgeKey(context: unknown): string {
+  const accountId = (context as { accountId?: string } | undefined)?.accountId?.trim() || 'site';
+  // Hash accountId so no raw user identifier is used as a KVS key.
+  const digest = createHash('sha256').update(accountId, 'utf8').digest('hex').slice(0, 16);
+  return `${REVIEW_NUDGE_KEY_PREFIX}${digest}`;
+}
+
+function getLicenseContext(context: unknown): ForgeResolverContextLike {
+  return (context ?? {}) as ForgeResolverContextLike;
+}
 
 interface JiraProjectSearchResponse {
   values?: Array<{
@@ -71,25 +96,32 @@ async function requestJiraSearchPage(
 
 const resolver = new Resolver();
 
+resolver.define('getLicenseStatus', (req) => {
+  return evaluateLicenseAccess(getLicenseContext(req.context));
+});
+
 resolver.define('getRulesConfig', async (): Promise<AuditRuleConfig> => {
   const saved = (await kvs.get(RULES_STORAGE_KEY)) as Partial<AuditRuleConfig> | undefined;
   return sanitizeRulesConfig(saved);
 });
 
 resolver.define('saveRulesConfig', async (req): Promise<AuditRuleConfig> => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as Partial<AuditRuleConfig>;
   const sanitized = sanitizeRulesConfig(payload);
   await kvs.set(RULES_STORAGE_KEY, sanitized);
   return sanitized;
 });
 
-resolver.define('resetRulesConfig', async (): Promise<AuditRuleConfig> => {
+resolver.define('resetRulesConfig', async (req): Promise<AuditRuleConfig> => {
+  assertLicensed(getLicenseContext(req.context));
   const defaults = sanitizeRulesConfig(DEFAULT_AUDIT_RULES);
   await kvs.set(RULES_STORAGE_KEY, defaults);
   return defaults;
 });
 
 resolver.define('discoverProjectStatuses', async (req) => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as {
     projectKey?: string;
     persistIfUnconfigured?: boolean;
@@ -192,6 +224,7 @@ resolver.define('getProjectVersions', async (req) => {
 });
 
 resolver.define('runAudit', async (req) => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as {
     projectKey?: string;
     fixVersion?: string;
@@ -231,6 +264,7 @@ resolver.define('listAuditSnapshots', async (): Promise<AuditSnapshotRecord[]> =
 });
 
 resolver.define('saveAuditSnapshot', async (req) => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as {
     report?: AuditReport;
     label?: string;
@@ -251,6 +285,7 @@ resolver.define('saveAuditSnapshot', async (req) => {
 });
 
 resolver.define('deleteAuditSnapshot', async (req) => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as { id?: string };
   const id = payload.id?.trim();
   const existing = sanitizeSnapshotList(await kvs.get(SNAPSHOTS_STORAGE_KEY));
@@ -303,6 +338,7 @@ resolver.define(
 );
 
 resolver.define('saveExceptionJustification', async (req) => {
+  assertLicensed(getLicenseContext(req.context));
   const payload = (req.payload ?? {}) as {
     issueKey?: string;
     note?: string;
@@ -328,6 +364,28 @@ resolver.define('saveExceptionJustification', async (req) => {
   const justifications = recordJustificationImmutable(existing, saved);
   await kvs.set(JUSTIFICATIONS_STORAGE_KEY, justifications);
   return { saved, justifications };
+});
+
+resolver.define('getReviewNudgeState', async (req): Promise<ReviewNudgeView> => {
+  const key = getReviewNudgeKey(req.context);
+  const state = sanitizeReviewNudgeState(await kvs.get(key));
+  return toReviewNudgeView(state);
+});
+
+resolver.define('recordExportEvent', async (req): Promise<ReviewNudgeView> => {
+  const key = getReviewNudgeKey(req.context);
+  const current = sanitizeReviewNudgeState(await kvs.get(key));
+  const updated = recordExportCompletion(current);
+  await kvs.set(key, updated);
+  return toReviewNudgeView(updated);
+});
+
+resolver.define('dismissReviewNudge', async (req): Promise<ReviewNudgeView> => {
+  const key = getReviewNudgeKey(req.context);
+  const current = sanitizeReviewNudgeState(await kvs.get(key));
+  const updated = markReviewNudgeDismissed(current);
+  await kvs.set(key, updated);
+  return toReviewNudgeView(updated);
 });
 
 export const handler = resolver.getDefinitions();

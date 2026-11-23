@@ -1,4 +1,7 @@
 import { invoke, router } from '@forge/bridge';
+import { LicenseStatus } from '../../../src/audit/licensing';
+import { buildEvidencePackHtml } from '../../../src/audit/pdfReportBuilder';
+import { MARKETPLACE_REVIEW_URL, ReviewNudgeView } from '../../../src/audit/reviewNudge';
 import {
   AuditSampleMetadata,
   generateVerifiableSeed,
@@ -147,11 +150,16 @@ let activeJustificationIssue: AuditedIssueRecord | null = null;
 let activeFrameworkFilter: string | null = null;
 let sampleEnabled = false;
 let sampleSeed = generateVerifiableSeed('PG');
+let reviewNudgeUrl = MARKETPLACE_REVIEW_URL;
 
+const licenseBanner = document.getElementById('license-banner') as HTMLDivElement;
 const discoveryBanner = document.getElementById('discovery-banner') as HTMLDivElement;
 const discoveryBannerText = document.getElementById('discovery-banner-text') as HTMLSpanElement;
 const discoveryReviewBtn = document.getElementById('discovery-review-btn') as HTMLButtonElement;
 const discoveryDismissBtn = document.getElementById('discovery-dismiss-btn') as HTMLButtonElement;
+const reviewNudgeBanner = document.getElementById('review-nudge-banner') as HTMLDivElement;
+const reviewNudgeLink = document.getElementById('review-nudge-link') as HTMLAnchorElement;
+const reviewNudgeDismissBtn = document.getElementById('review-nudge-dismiss-btn') as HTMLButtonElement;
 const projectSelect = document.getElementById('project-select') as HTMLSelectElement;
 const versionSelect = document.getElementById('version-select') as HTMLSelectElement;
 const dateRangeSelect = document.getElementById('date-range-select') as HTMLSelectElement;
@@ -1269,12 +1277,71 @@ regenerateSeedBtn.addEventListener('click', () => {
   }
 });
 
+function applyReviewNudgeView(view: ReviewNudgeView | null | undefined): void {
+  if (!view) return;
+  if (view.reviewUrl) {
+    reviewNudgeUrl = view.reviewUrl;
+  }
+  if (view.shouldShow) {
+    reviewNudgeBanner.classList.remove('hidden');
+  } else {
+    reviewNudgeBanner.classList.add('hidden');
+  }
+}
+
+async function loadReviewNudgeState(): Promise<void> {
+  try {
+    const view = (await invoke('getReviewNudgeState')) as ReviewNudgeView;
+    applyReviewNudgeView(view);
+  } catch {
+    // Non-blocking outside Forge
+  }
+}
+
+async function notifyExportSucceeded(): Promise<void> {
+  try {
+    const view = (await invoke('recordExportEvent')) as ReviewNudgeView;
+    applyReviewNudgeView(view);
+  } catch {
+    // Non-blocking outside Forge
+  }
+}
+
+reviewNudgeLink.addEventListener('click', (event) => {
+  event.preventDefault();
+  void router.open(reviewNudgeUrl);
+});
+
+reviewNudgeDismissBtn.addEventListener('click', async () => {
+  reviewNudgeBanner.classList.add('hidden');
+  try {
+    await invoke('dismissReviewNudge');
+  } catch {
+    // Already hidden in UI
+  }
+});
+
 async function initDashboard(): Promise<void> {
+  try {
+    const license = (await invoke('getLicenseStatus')) as LicenseStatus;
+    if (license && !license.allowed) {
+      licenseBanner.classList.remove('hidden');
+      runBtn.disabled = true;
+      configureRulesBtn.disabled = true;
+      saveSnapshotBtn.disabled = true;
+      statusMsg.textContent = 'Activate a ProofGate license in Jira Manage Apps to run audits.';
+      return;
+    }
+  } catch {
+    // Allow local/dev preview if resolver context is unavailable
+  }
+
   await loadRulesConfig();
   const [initialProjectKey] = await Promise.all([
     loadProjects(),
     loadSnapshots(),
     loadJustifications(),
+    loadReviewNudgeState(),
   ]);
   if (initialProjectKey) {
     sampleSeed = generateVerifiableSeed(initialProjectKey);
@@ -1361,6 +1428,7 @@ exportCsvBtn.addEventListener('click', async () => {
     `${csvBody}\n# SHA-256: ${sha256}\n`,
     'text/csv;charset=utf-8',
   );
+  void notifyExportSucceeded();
 });
 
 exportHtmlBtn.addEventListener('click', async () => {
@@ -1385,103 +1453,21 @@ exportHtmlBtn.addEventListener('click', async () => {
   const sha256 = await computeSha256Hex(canonicalPayload);
   const timestamp = currentReport.generatedAt.slice(0, 10);
 
-  const controlsRows = currentReport.controlSummaries
-    .map(
-      (c) =>
-        `<tr><td>${escapeHtml(c.label)}</td><td>${c.passed}</td><td>${c.failed}</td></tr>`,
-    )
-    .join('');
-
-  const issueRows = exportRecords
-    .map((r) => {
-      const justification = getJustification(r.key);
-      const statusText = r.compliant ? 'PASS' : justification ? 'JUSTIFIED' : 'EXCEPTION';
-      const justText = justification
-        ? `${justification.note} — Signed by ${justification.authorName} (${justification.recordedAt})`
-        : '—';
-      return `
-      <tr>
-        <td>${escapeHtml(r.key)}</td>
-        <td>${escapeHtml(r.summary)}</td>
-        <td>${escapeHtml(r.assigneeName)}</td>
-        <td>${escapeHtml(r.approverName ?? '—')}</td>
-        <td>${escapeHtml(r.completedAt ?? '—')}</td>
-        <td>${statusText}</td>
-        <td>${escapeHtml(r.violations.map((v) => `${v.code}: ${v.message}`).join(' | ') || 'None')}</td>
-        <td>${escapeHtml(justText)}</td>
-      </tr>`;
-    })
-    .join('');
-
-  const justificationsSectionHtml =
-    exportedJustifications.length > 0
-      ? `
-  <h2>Signed Exception Justifications (${exportedJustifications.length})</h2>
-  <table>
-    <thead><tr><th>Issue Key</th><th>Justification Note</th><th>Signed By</th><th>Recorded At (UTC)</th><th>Violations Covered</th></tr></thead>
-    <tbody>
-      ${exportedJustifications
-        .map(
-          (j) => `
-        <tr>
-          <td><strong>${escapeHtml(j.issueKey)}</strong></td>
-          <td>${escapeHtml(j.note)}</td>
-          <td>${escapeHtml(j.authorName)}</td>
-          <td>${escapeHtml(j.recordedAt)}</td>
-          <td>${escapeHtml(j.violationCodes.join(', ') || 'Exception')}</td>
-        </tr>`,
-        )
-        .join('')}
-    </tbody>
-  </table>`
-      : '';
-
-  const samplingHtml = sampleMetadata
-    ? `
-  <div class="sample-attestation">
-    <strong>Verifiable Auditor Random Sample Attestation</strong>
-    <div><strong>Population Size:</strong> ${sampleMetadata.populationSize} · <strong>Sample Size:</strong> ${sampleMetadata.sampleSize} (requested N=${sampleMetadata.requestedSampleSize})</div>
-    <div><strong>Verifiable Random Seed:</strong> <code>${escapeHtml(sampleMetadata.seed)}</code></div>
-    <div><strong>Algorithm:</strong> <code>${escapeHtml(sampleMetadata.algorithm)}</code> (re-running ProofGate with the same population &amp; seed reproduces this exact sample)</div>
-  </div>`
-    : `<div><strong>Sampling Mode:</strong> Full Population (${currentReport.totalAudited} of ${currentReport.totalAudited} changes)</div>`;
-
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>ProofGate — SOC 2, ISO 27001 &amp; DORA Evidence Pack (${escapeHtml(timestamp)})</title>
-  <style>
-    body { font-family: Arial, sans-serif; color: #172b4d; padding: 24px; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
-    th { background: #f4f5f7; }
-    .meta { background: #f4f5f7; padding: 12px; border-radius: 6px; font-size: 13px; line-height: 1.5; }
-    .sample-attestation { margin-top: 10px; padding: 10px 12px; border-radius: 6px; background: #f3f0ff; border: 1px solid #dfd8fd; color: #403294; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <h1>ProofGate — Jira Change-Management Audit Evidence Pack</h1>
-  <div class="meta">
-    <div><strong>Generated At:</strong> ${escapeHtml(currentReport.generatedAt)}</div>
-    <div><strong>Scope (JQL):</strong> <code>${escapeHtml(currentReport.jql)}</code></div>
-    <div><strong>Population Summary:</strong> ${currentReport.compliantCount}/${currentReport.totalAudited} compliant (${currentReport.complianceRatePercent}%) · ${exportedJustifications.length} signed exception justification(s)</div>
-    <div><strong>Report SHA-256 Fingerprint:</strong> <code>${sha256}</code></div>
-    ${samplingHtml}
-  </div>
-  <h2>Framework Control Summary</h2>
-  <table>
-    <thead><tr><th>Control</th><th>Passed</th><th>Exceptions</th></tr></thead>
-    <tbody>${controlsRows}</tbody>
-  </table>
-  ${justificationsSectionHtml}
-  <h2>${sampleMetadata ? `Audited Change Sample (${sampleMetadata.sampleSize} of ${sampleMetadata.populationSize})` : 'Audited Change Records'}</h2>
-  <table>
-    <thead><tr><th>Key</th><th>Summary</th><th>Assignee</th><th>Approver</th><th>Completed At</th><th>Status</th><th>Findings</th><th>Signed Justification</th></tr></thead>
-    <tbody>${issueRows}</tbody>
-  </table>
-</body>
-</html>`;
+  const html = buildEvidencePackHtml({
+    generatedAt: currentReport.generatedAt,
+    jql: currentReport.jql,
+    scopeSummary: buildCurrentScopeSummary(),
+    rules: currentReport.rules ?? currentRules,
+    totalAudited: currentReport.totalAudited,
+    compliantCount: currentReport.compliantCount,
+    nonCompliantCount: currentReport.nonCompliantCount,
+    complianceRatePercent: currentReport.complianceRatePercent,
+    controlSummaries: currentReport.controlSummaries,
+    records: exportRecords,
+    sampleMetadata,
+    justifications: justificationsMap,
+    sha256,
+  });
 
   const sampleTag = sampleMetadata ? `-sample${sampleMetadata.sampleSize}` : '';
   downloadFile(
@@ -1489,4 +1475,5 @@ exportHtmlBtn.addEventListener('click', async () => {
     html,
     'text/html;charset=utf-8',
   );
+  void notifyExportSucceeded();
 });

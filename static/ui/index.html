@@ -22,11 +22,37 @@
         </div>
       </header>
 
+      <div id="license-banner" class="license-banner hidden" role="alert">
+        <div>
+          <strong>ProofGate license inactive:</strong> An active Atlassian Marketplace license is
+          required in production (free forever for 1–10 Jira users). Ask your Jira site
+          administrator to activate or renew ProofGate under <strong>Apps &rarr; Manage apps</strong>.
+        </div>
+      </div>
+
       <div id="discovery-banner" class="discovery-banner hidden" role="status">
         <span id="discovery-banner-text"></span>
         <div class="discovery-banner-actions">
           <button id="discovery-review-btn" class="link-btn" type="button">Review rules</button>
           <button id="discovery-dismiss-btn" class="icon-btn-sm" type="button" aria-label="Dismiss notice">
+            &times;
+          </button>
+        </div>
+      </div>
+
+      <div id="review-nudge-banner" class="review-nudge-banner hidden" role="status">
+        <span>
+          Finding ProofGate helpful for your audits? A quick Marketplace review helps independent
+          Runs-on-Atlassian apps grow.
+        </span>
+        <div class="review-nudge-actions">
+          <a id="review-nudge-link" class="link-btn" href="#">Leave a review &#8599;</a>
+          <button
+            id="review-nudge-dismiss-btn"
+            class="icon-btn-sm"
+            type="button"
+            aria-label="Dismiss review banner permanently"
+          >
             &times;
           </button>
         </div>

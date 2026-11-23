@@ -1201,3 +1201,40 @@ th {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* License Guard Banner (PG-16) & Peak Delight Review Nudge (PG-15) */
+.license-banner {
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: var(--fail-bg);
+  border: 1px solid #ffd5d2;
+  color: var(--fail-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.review-nudge-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: #f7f8f9;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.review-nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.review-nudge-actions a {
+  text-decoration: none;
+}
